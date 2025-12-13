@@ -1,0 +1,14 @@
+C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\ProgramLab.exe.config
+C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\ProgramLab.exe
+C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\ProgramLab.pdb
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.csproj.AssemblyReference.cache
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Dichotomy.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Main.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Properties.Resources.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.csproj.GenerateResource.cache
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.csproj.CoreCompileInputs.cache
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.exe
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.pdb
+C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\NCalc.dll
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.csproj.Up2Date
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.GoldenRatio.resources
