@@ -123,6 +123,9 @@
     <EmbeddedResource Include="GoldenRatio.resx">
       <DependentUpon>GoldenRatio.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Integral.resx">
+      <DependentUpon>Integral.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Main.resx">
       <DependentUpon>Main.cs</DependentUpon>
     </EmbeddedResource>

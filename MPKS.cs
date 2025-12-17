@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +11,7 @@ namespace ProgramLab
 {
     public partial class MPKS : Form
     {
+        // Приватные поля для хранения данных
         private string functionExpression;
         private double intervalA;
         private double intervalB;
@@ -21,6 +21,7 @@ namespace ProgramLab
         private double minX;
         private double minY;
 
+        // Для управления выполнением
         private CancellationTokenSource cancellationTokenSource;
         private bool isRunning = false;
 
@@ -173,10 +174,6 @@ namespace ProgramLab
             Chart.ChartAreas[0].AxisY.Crossing = 0;
             Chart.ChartAreas[0].AxisX.MajorGrid.LineColor = Color.LightGray;
             Chart.ChartAreas[0].AxisY.MajorGrid.LineColor = Color.LightGray;
-
-            // Устанавливаем формат отображения чисел на осях
-            Chart.ChartAreas[0].AxisX.LabelStyle.Format = "0.###";
-            Chart.ChartAreas[0].AxisY.LabelStyle.Format = "0.###";
         }
 
         private async Task StartDescentAsync()
@@ -230,8 +227,8 @@ namespace ProgramLab
                 ButtonStop.Enabled = false;
 
                 // Выводим результат
-                TextBoxXMin.Text = minX.ToString($"F{precision}", CultureInfo.InvariantCulture);
-                TextBoxYMin.Text = minY.ToString($"F{precision}", CultureInfo.InvariantCulture);
+                TextBoxXMin.Text = minX.ToString($"F{precision}");
+                TextBoxYMin.Text = minY.ToString($"F{precision}");
             }
         }
 
@@ -275,8 +272,8 @@ namespace ProgramLab
 
             // Проверка интервала
             double a, b;
-            if (!double.TryParse(TextBoxA.Text.Replace('.', ','), NumberStyles.Any, CultureInfo.InvariantCulture, out a) ||
-                !double.TryParse(TextBoxB.Text.Replace('.', ','), NumberStyles.Any, CultureInfo.InvariantCulture, out b))
+            if (!double.TryParse(TextBoxA.Text.Replace('.', ','), out a) ||
+                !double.TryParse(TextBoxB.Text.Replace('.', ','), out b))
             {
                 MessageBox.Show("Некорректный формат чисел в интервале.",
                     "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -292,7 +289,7 @@ namespace ProgramLab
 
             // Проверка начальной точки
             double x;
-            if (!double.TryParse(TextBoxX.Text.Replace('.', ','), NumberStyles.Any, CultureInfo.InvariantCulture, out x))
+            if (!double.TryParse(TextBoxX.Text.Replace('.', ','), out x))
             {
                 MessageBox.Show("Некорректный формат начальной точки.",
                     "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -311,54 +308,24 @@ namespace ProgramLab
 
         private void ParseInput()
         {
-            // Преобразуем функцию для NCalc
-            string input = TextBoxF.Text;
+            // Преобразуем функцию: оставляем ^ как есть - NCalc понимает его как возведение в степень
+            functionExpression = TextBoxF.Text
+                .Replace("sin", "Sin")  // NCalc требует заглавные буквы
+                .Replace("cos", "Cos")
+                .Replace("tan", "Tan")
+                .Replace("tg", "Tan")
+                .Replace("ctg", "Cot")
+                .Replace("log", "Log")
+                .Replace("ln", "Log")
+                .Replace("exp", "Exp")
+                .Replace("sqrt", "Sqrt");
 
-            // НЕ переводим в нижний регистр, чтобы сохранить регистр функций
-            // NCalc чувствителен к регистру, стандартные функции: Sin, Cos, Tan, Exp, Log и т.д.
-
-            // Обработка символа ^ - NCalc понимает его как возведение в степень
-            // Оставляем ^ как есть
-
-            // Обработка функций:
-            // 1. sin -> Sin
-            // 2. cos -> Cos
-            // 3. tg -> Tan
-            // 4. ctg -> (1/Tan)
-            // 5. e(x) -> Exp(x)
-            // 6. ln(x) -> Log(x) (натуральный логарифм)
-            // 7. log(2,x) -> Log(2,x) - будет обработано в EvaluateFunction
-
-            // Заменяем sin на Sin (NCalc требует заглавную букву)
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\bsin\b", "Sin", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\bcos\b", "Cos", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\btan\b", "Tan", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Заменяем tg на Tan
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\btg\b", "Tan", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Заменяем ctg на (1/Tan)
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\bctg\b", "(1/Tan)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Заменяем exp на Exp
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\bexp\b", "Exp", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Заменяем e(x) на Exp(x)
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\be\(", "Exp(", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Заменяем ln на Log
-            input = System.Text.RegularExpressions.Regex.Replace(input, @"\bln\b", "Log", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            // Для log - оставляем как есть, будет обработано в EvaluateFunction
-
-            functionExpression = input;
-
-            // Парсим числа с учетом культуры
-            intervalA = double.Parse(TextBoxA.Text.Replace('.', ','), CultureInfo.InvariantCulture);
-            intervalB = double.Parse(TextBoxB.Text.Replace('.', ','), CultureInfo.InvariantCulture);
+            // Парсим числа
+            intervalA = double.Parse(TextBoxA.Text.Replace('.', ','));
+            intervalB = double.Parse(TextBoxB.Text.Replace('.', ','));
             precision = int.Parse(TextBoxE.Text);
-            initialX = double.Parse(TextBoxX.Text.Replace('.', ','), CultureInfo.InvariantCulture);
-            stepH = double.Parse(TextBoxH.Text.Replace('.', ','), CultureInfo.InvariantCulture);
+            initialX = double.Parse(TextBoxX.Text.Replace('.', ','));
+            stepH = double.Parse(TextBoxH.Text.Replace('.', ','));
         }
 
         private void PlotFunction()
@@ -369,30 +336,43 @@ namespace ProgramLab
             Chart.Series["LeftBoundary"].Points.Clear();
             Chart.Series["RightBoundary"].Points.Clear();
 
-            // Для определения диапазона Y
+            // Для хранения точек графика
+            List<PointF> functionPoints = new List<PointF>();
+
+            // Рисуем вертикальные линии границ
             double yMin = double.MaxValue;
             double yMax = double.MinValue;
 
-            // Количество точек для построения графика
+            // Собираем значения функции для определения диапазона Y
             int pointsCount = 500;
             double step = (intervalB - intervalA) / pointsCount;
-
-            // Собираем значения функции
-            List<PointF> validPoints = new List<PointF>();
 
             for (int i = 0; i <= pointsCount; i++)
             {
                 double x = intervalA + i * step;
-                double y = EvaluateFunction(x);
-
-                // Добавляем точку в список, даже если NaN (для обработки разрывов)
-                validPoints.Add(new PointF((float)x, (float)y));
-
-                // Обновляем диапазон Y только для корректных значений
-                if (!double.IsNaN(y) && !double.IsInfinity(y))
+                try
                 {
-                    yMin = Math.Min(yMin, y);
-                    yMax = Math.Max(yMax, y);
+                    double y = EvaluateFunction(x);
+
+                    if (!double.IsInfinity(y) && !double.IsNaN(y))
+                    {
+                        // Добавляем точку в список
+                        functionPoints.Add(new PointF((float)x, (float)y));
+
+                        // Обновляем диапазон Y
+                        yMin = Math.Min(yMin, y);
+                        yMax = Math.Max(yMax, y);
+                    }
+                    else
+                    {
+                        // Для разрывов добавляем точку с NaN
+                        functionPoints.Add(new PointF((float)x, float.NaN));
+                    }
+                }
+                catch
+                {
+                    // Ошибка вычисления - добавляем точку с NaN
+                    functionPoints.Add(new PointF((float)x, float.NaN));
                 }
             }
 
@@ -402,21 +382,11 @@ namespace ProgramLab
                 yMin = -10;
                 yMax = 10;
             }
-            else
-            {
-                // Добавляем запас по вертикали
-                double yRange = yMax - yMin;
-                if (yRange < 0.1) yRange = Math.Max(Math.Abs(yMin), Math.Abs(yMax)) * 2;
-                if (yRange < 1) yRange = 1;
-                yMin -= yRange * 0.1;
-                yMax += yRange * 0.1;
-            }
 
-            // Рисуем все точки
-            foreach (var point in validPoints)
-            {
-                Chart.Series["Function"].Points.AddXY(point.X, point.Y);
-            }
+            // Добавляем запас по вертикали
+            double yRange = yMax - yMin;
+            yMin -= yRange * 0.1;
+            yMax += yRange * 0.1;
 
             // Рисуем границы интервала
             Chart.Series["LeftBoundary"].Points.AddXY(intervalA, yMin);
@@ -425,172 +395,67 @@ namespace ProgramLab
             Chart.Series["RightBoundary"].Points.AddXY(intervalB, yMin);
             Chart.Series["RightBoundary"].Points.AddXY(intervalB, yMax);
 
+            // Рисуем саму функцию - ВАЖНО: точки должны быть отсортированы по X
+            // Сортируем точки по координате X
+            functionPoints.Sort((p1, p2) => p1.X.CompareTo(p2.X));
+
+            // Добавляем точки на график в правильном порядке
+            foreach (var point in functionPoints)
+            {
+                if (float.IsNaN(point.Y))
+                {
+                    // Для разрывов добавляем пустую точку
+                    Chart.Series["Function"].Points.AddXY(point.X, double.NaN);
+                }
+                else
+                {
+                    Chart.Series["Function"].Points.AddXY(point.X, point.Y);
+                }
+            }
+
             // Настраиваем видимый диапазон
-            double xRange = Math.Abs(intervalB - intervalA);
-            Chart.ChartAreas[0].AxisX.Minimum = intervalA - xRange * 0.05;
-            Chart.ChartAreas[0].AxisX.Maximum = intervalB + xRange * 0.05;
+            Chart.ChartAreas[0].AxisX.Minimum = intervalA - Math.Abs(intervalB - intervalA) * 0.1;
+            Chart.ChartAreas[0].AxisX.Maximum = intervalB + Math.Abs(intervalB - intervalA) * 0.1;
             Chart.ChartAreas[0].AxisY.Minimum = yMin;
             Chart.ChartAreas[0].AxisY.Maximum = yMax;
 
-            // Обновляем формат осей
-            Chart.ChartAreas[0].AxisX.LabelStyle.Format = "0.###";
-            Chart.ChartAreas[0].AxisY.LabelStyle.Format = "0.###";
+            // Обновляем график
             Chart.Refresh();
         }
 
-        private double EvaluateFunction(double xValue)
+        private double EvaluateFunction(double x)
         {
             try
             {
                 // Создаем выражение NCalc
                 Expression expression = new Expression(functionExpression);
 
-                // Сохраняем значение x в локальную переменную для использования в делегатах
-                double localX = xValue;
-
                 // Устанавливаем параметры
-                expression.Parameters["x"] = localX;
-                expression.Parameters["X"] = localX;
+                expression.Parameters["x"] = x;
+                expression.Parameters["X"] = x;
 
-                // Добавляем математические константы
-                expression.Parameters["pi"] = Math.PI;
-                expression.Parameters["e"] = Math.E;
-
-                // Настраиваем перехват параметров
+                // Добавляем математические функции
                 expression.EvaluateParameter += (name, args) =>
                 {
-                    if (name == "pi" || name == "PI")
-                    {
-                        args.Result = Math.PI;
-                    }
-                    else if (name == "e" || name == "E")
-                    {
-                        args.Result = Math.E;
-                    }
-                    else if (name == "x" || name == "X")
-                    {
-                        args.Result = localX;
-                    }
+                    if (name == "pi" || name == "PI") args.Result = Math.PI;
+                    if (name == "e" || name == "E") args.Result = Math.E;
                 };
 
-                // Настраиваем функции для NCalc
+                // Добавляем обработку функции pow для совместимости
                 expression.EvaluateFunction += (name, args) =>
                 {
-                    try
+                    if (name.ToLower() == "pow" && args.Parameters.Length == 2)
                     {
-                        if (args.Parameters == null || args.Parameters.Length == 0)
+                        try
                         {
-                            args.Result = 0;
-                            return;
+                            double baseValue = Convert.ToDouble(args.Parameters[0].Evaluate());
+                            double exponent = Convert.ToDouble(args.Parameters[1].Evaluate());
+                            args.Result = Math.Pow(baseValue, exponent);
                         }
-
-                        // Используем отдельную переменную для параметра
-                        double paramValue = 0;
-                        object paramObj = args.Parameters[0].Evaluate();
-
-                        if (paramObj is double)
-                            paramValue = (double)paramObj;
-                        else if (paramObj is int)
-                            paramValue = (int)paramObj;
-                        else if (paramObj is decimal)
-                            paramValue = (double)(decimal)paramObj;
-                        else if (paramObj is bool)
-                            paramValue = (bool)paramObj ? 1 : 0;
-                        else if (paramObj != null)
-                            double.TryParse(paramObj.ToString(), out paramValue);
-
-                        switch (name.ToLower())
+                        catch
                         {
-                            case "sin":
-                                args.Result = Math.Sin(paramValue);
-                                break;
-                            case "cos":
-                                args.Result = Math.Cos(paramValue);
-                                break;
-                            case "tan":
-                                // Обработка тангенса с проверкой на разрыв
-                                double cos = Math.Cos(paramValue);
-                                if (Math.Abs(cos) < 1e-15)
-                                {
-                                    args.Result = double.NaN;
-                                }
-                                else
-                                {
-                                    args.Result = Math.Tan(paramValue);
-                                }
-                                break;
-                            case "exp":
-                                // Экспонента e^x
-                                args.Result = Math.Exp(paramValue);
-                                break;
-                            case "log":
-                                // Обработка логарифма: может быть один или два параметра
-                                if (args.Parameters.Length == 1)
-                                {
-                                    // Натуральный логарифм ln(x) или просто log(x)
-                                    if (paramValue <= 0)
-                                        args.Result = double.NaN;
-                                    else
-                                        args.Result = Math.Log(paramValue);
-                                }
-                                else if (args.Parameters.Length == 2)
-                                {
-                                    // Логарифм с основанием: log(2,x) или log(10,x)
-                                    double baseValue = 0;
-                                    object baseObj = args.Parameters[1].Evaluate();
-
-                                    if (baseObj is double)
-                                        baseValue = (double)baseObj;
-                                    else if (baseObj is int)
-                                        baseValue = (int)baseObj;
-                                    else if (baseObj is decimal)
-                                        baseValue = (double)(decimal)baseObj;
-                                    else if (baseObj != null)
-                                        double.TryParse(baseObj.ToString(), out baseValue);
-
-                                    // Логарифм по основанию: log_base(paramValue) = Math.Log(paramValue) / Math.Log(baseValue)
-                                    if (paramValue <= 0 || baseValue <= 0 || baseValue == 1)
-                                        args.Result = double.NaN;
-                                    else
-                                        args.Result = Math.Log(paramValue) / Math.Log(baseValue);
-                                }
-                                break;
-                            case "sqrt":
-                                if (paramValue < 0)
-                                    args.Result = double.NaN;
-                                else
-                                    args.Result = Math.Sqrt(paramValue);
-                                break;
-                            case "abs":
-                                args.Result = Math.Abs(paramValue);
-                                break;
-                            case "pow":
-                                if (args.Parameters.Length >= 2)
-                                {
-                                    double exponent = 0;
-                                    object expObj = args.Parameters[1].Evaluate();
-
-                                    if (expObj is double)
-                                        exponent = (double)expObj;
-                                    else if (expObj is int)
-                                        exponent = (int)expObj;
-                                    else if (expObj is decimal)
-                                        exponent = (double)(decimal)expObj;
-                                    else if (expObj != null)
-                                        double.TryParse(expObj.ToString(), out exponent);
-
-                                    args.Result = Math.Pow(paramValue, exponent);
-                                }
-                                break;
-                            default:
-                                // Если функция не распознана, возвращаем NaN
-                                args.Result = double.NaN;
-                                break;
+                            args.Result = double.NaN;
                         }
-                    }
-                    catch
-                    {
-                        args.Result = double.NaN;
                     }
                 };
 
@@ -609,25 +474,14 @@ namespace ProgramLab
                 {
                     return (double)(decimal)result;
                 }
-                else if (result is bool)
-                {
-                    return (bool)result ? 1 : 0;
-                }
                 else
                 {
-                    // Пытаемся преобразовать строку
-                    if (result != null && double.TryParse(result.ToString(), out double parsed))
-                    {
-                        return parsed;
-                    }
-                    return double.NaN;
+                    throw new InvalidOperationException("Неверный тип результата функции");
                 }
             }
             catch (Exception ex)
             {
-                // Для отладки можно вывести сообщение в консоль
-                System.Diagnostics.Debug.WriteLine($"Ошибка вычисления функции в точке x={xValue}: {ex.Message}");
-                return double.NaN;
+                throw new Exception($"Ошибка вычисления функции в точке x={x}: {ex.Message}");
             }
         }
 
@@ -654,61 +508,31 @@ namespace ProgramLab
                 {
                     // Если вышли за границы, возвращаемся к ближайшей границе
                     currentX = Math.Max(intervalA, Math.Min(currentX, intervalB));
-                    double currentFAtBoundary = EvaluateFunction(currentX);
-
-                    if (!double.IsNaN(currentFAtBoundary) && currentFAtBoundary < minY)
-                    {
-                        minX = currentX;
-                        minY = currentFAtBoundary;
-                    }
-
                     AddDescentPoint(currentX);
-                    await Task.Delay(500, cancellationToken);
+                    await Task.Delay(500);
                     break;
                 }
 
                 // Вычисляем текущее значение функции
                 double currentF = EvaluateFunction(currentX);
 
-                // Пропускаем итерацию, если значение невалидное
-                if (double.IsNaN(currentF) || double.IsInfinity(currentF))
-                {
-                    // Пробуем сместиться немного вправо
-                    currentX += stepH;
-                    continue;
-                }
-
                 // Первый этап: определение направления движения
                 double x1 = currentX - stepH;
                 double x2 = currentX + stepH;
 
-                double f1 = double.MaxValue;
-                double f2 = double.MaxValue;
+                double f1 = EvaluateFunction(x1);
+                double f2 = EvaluateFunction(x2);
 
-                double f1Val = EvaluateFunction(x1);
-                double f2Val = EvaluateFunction(x2);
-
-                if (!double.IsNaN(f1Val) && !double.IsInfinity(f1Val))
-                    f1 = f1Val;
-
-                if (!double.IsNaN(f2Val) && !double.IsInfinity(f2Val))
-                    f2 = f2Val;
-
-                double newX = currentX;
-                bool foundDirection = false;
-
+                double newX;
                 if (f1 < currentF && x1 >= intervalA)
                 {
                     newX = x1; // Двигаемся влево
-                    foundDirection = true;
                 }
                 else if (f2 < currentF && x2 <= intervalB)
                 {
                     newX = x2; // Двигаемся вправо
-                    foundDirection = true;
                 }
-
-                if (!foundDirection)
+                else
                 {
                     // Если оба направления не улучшают значение, уменьшаем шаг
                     if (stepH > epsilon * 10)
@@ -726,21 +550,11 @@ namespace ProgramLab
                 // Второй этап: проверка условия остановки
                 double newF = EvaluateFunction(newX);
 
-                // Пропускаем, если значение невалидное
-                if (double.IsNaN(newF) || double.IsInfinity(newF))
-                {
-                    continue;
-                }
-
                 // Обновляем точку минимума
-                if (newF < minY)
+                if (newF < currentF)
                 {
                     minX = newX;
                     minY = newF;
-                }
-
-                if (newF < currentF)
-                {
                     currentX = newX;
 
                     // Добавляем точку на график
@@ -780,31 +594,28 @@ namespace ProgramLab
             // Вычисляем значение функции в точке
             double y = EvaluateFunction(x);
 
-            // Проверяем, что значение корректное
-            if (!double.IsNaN(y) && !double.IsInfinity(y))
+            // Добавляем в список точек спуска
+            descentPoints.Add(new PointF((float)x, (float)y));
+
+            // Обновляем график в UI потоке
+            if (Chart.InvokeRequired)
             {
-                // Добавляем в список точек спуска
-                descentPoints.Add(new PointF((float)x, (float)y));
-
-                // Обновляем график в UI потоке
-                if (Chart.InvokeRequired)
+                Chart.Invoke(new Action(() =>
                 {
-                    Chart.Invoke(new Action(() =>
+                    Chart.Series["Descent"].Points.Clear();
+                    foreach (var point in descentPoints)
                     {
-                        Chart.Series["Descent"].Points.Clear();
-                        foreach (var point in descentPoints)
-                        {
-                            Chart.Series["Descent"].Points.AddXY(point.X, point.Y);
-                        }
+                        Chart.Series["Descent"].Points.AddXY(point.X, point.Y);
+                    }
 
-                        // Помечаем последнюю точку зеленым цветом
-                        if (descentPoints.Count > 0 && Chart.Series["Descent"].Points.Count > 0)
-                        {
-                            Chart.Series["Descent"].Points.Last().Color = Color.Green;
-                            Chart.Series["Descent"].Points.Last().MarkerSize = 10;
-                        }
-                    }));
-                }
+                    // Помечаем последнюю точку
+                    if (descentPoints.Count > 0)
+                    {
+                        var lastPoint = descentPoints.Last();
+                        Chart.Series["Descent"].Points.Last().Color = Color.Green;
+                        Chart.Series["Descent"].Points.Last().MarkerSize = 10;
+                    }
+                }));
             }
         }
 

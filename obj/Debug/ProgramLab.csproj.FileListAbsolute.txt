@@ -13,3 +13,4 @@ C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\NCalc.dll
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.csproj.Up2Date
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.GoldenRatio.resources
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.MPKS.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Integral.resources

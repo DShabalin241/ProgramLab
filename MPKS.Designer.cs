@@ -196,13 +196,13 @@
             this.Chart.ChartAreas.Add(chartArea1);
             legend1.Name = "Legend1";
             this.Chart.Legends.Add(legend1);
-            this.Chart.Location = new System.Drawing.Point(271, 5);
+            this.Chart.Location = new System.Drawing.Point(294, 12);
             this.Chart.Name = "Chart";
             series1.ChartArea = "ChartArea1";
             series1.Legend = "Legend1";
             series1.Name = "Series1";
             this.Chart.Series.Add(series1);
-            this.Chart.Size = new System.Drawing.Size(527, 391);
+            this.Chart.Size = new System.Drawing.Size(494, 377);
             this.Chart.TabIndex = 20;
             this.Chart.Text = "chart1";
             // 
@@ -217,7 +217,7 @@
             // 
             // ButtonClear
             // 
-            this.ButtonClear.Location = new System.Drawing.Point(142, 373);
+            this.ButtonClear.Location = new System.Drawing.Point(100, 373);
             this.ButtonClear.Name = "ButtonClear";
             this.ButtonClear.Size = new System.Drawing.Size(87, 53);
             this.ButtonClear.TabIndex = 22;
@@ -251,7 +251,7 @@
             // 
             // ButtonStop
             // 
-            this.ButtonStop.Location = new System.Drawing.Point(261, 385);
+            this.ButtonStop.Location = new System.Drawing.Point(193, 373);
             this.ButtonStop.Name = "ButtonStop";
             this.ButtonStop.Size = new System.Drawing.Size(87, 53);
             this.ButtonStop.TabIndex = 23;
