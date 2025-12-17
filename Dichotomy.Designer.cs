@@ -132,6 +132,7 @@
             this.textBoxF.Name = "textBoxF";
             this.textBoxF.Size = new System.Drawing.Size(100, 20);
             this.textBoxF.TabIndex = 8;
+            this.textBoxF.TextChanged += new System.EventHandler(this.textBoxF_TextChanged);
             // 
             // textBoxA
             // 

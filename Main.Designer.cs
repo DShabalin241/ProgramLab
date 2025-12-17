@@ -35,6 +35,7 @@
             this.MNK = new System.Windows.Forms.Button();
             this.Newton = new System.Windows.Forms.Button();
             this.Sort = new System.Windows.Forms.Button();
+            this.buttonMPKS = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // DichotomyButton
@@ -107,11 +108,22 @@
             this.Sort.UseVisualStyleBackColor = true;
             this.Sort.Click += new System.EventHandler(this.Sort_Click);
             // 
+            // buttonMPKS
+            // 
+            this.buttonMPKS.Location = new System.Drawing.Point(637, 132);
+            this.buttonMPKS.Name = "buttonMPKS";
+            this.buttonMPKS.Size = new System.Drawing.Size(117, 85);
+            this.buttonMPKS.TabIndex = 8;
+            this.buttonMPKS.Text = "Метод покоординатного спуска";
+            this.buttonMPKS.UseVisualStyleBackColor = true;
+            this.buttonMPKS.Click += new System.EventHandler(this.buttonMPKS_Click);
+            // 
             // Main
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.buttonMPKS);
             this.Controls.Add(this.Sort);
             this.Controls.Add(this.Newton);
             this.Controls.Add(this.MNK);
@@ -134,6 +146,7 @@
         private System.Windows.Forms.Button MNK;
         private System.Windows.Forms.Button Newton;
         private System.Windows.Forms.Button Sort;
+        private System.Windows.Forms.Button buttonMPKS;
     }
 }
 

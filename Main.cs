@@ -60,5 +60,11 @@ namespace ProgramLab
             Integral secondForm = new Integral(); 
             secondForm.Show();
         }
+
+        private void buttonMPKS_Click(object sender, EventArgs e)
+        {
+            MPKS secondForm = new MPKS();
+            secondForm.Show();
+        }
     }
 }

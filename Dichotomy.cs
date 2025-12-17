@@ -1133,6 +1133,11 @@ namespace ProgramLab
         {
 
         }
+
+        private void textBoxF_TextChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 
     class ProgramLab
