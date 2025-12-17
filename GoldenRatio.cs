@@ -780,6 +780,11 @@ namespace ProgramLab
             chartFunc.Invalidate();
         }
 
-      
+        private void buttonBack_Click(object sender, EventArgs e)
+        {
+            Main main = new Main(); 
+            main.Show();
+            GoldenRatio Form; Close();
+        }
     }
 }

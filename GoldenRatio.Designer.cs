@@ -66,6 +66,7 @@
             this.buttonBack.TabIndex = 0;
             this.buttonBack.Text = "Назад";
             this.buttonBack.UseVisualStyleBackColor = true;
+            this.buttonBack.Click += new System.EventHandler(this.buttonBack_Click);
             // 
             // labelF
             // 
@@ -299,8 +300,7 @@
             this.Controls.Add(this.buttonBack);
             this.Name = "GoldenRatio";
             this.Text = "GoldenRatio";
-            //this.Load += new System.EventHandler(this.GoldenRatio_Load);
-           ((System.ComponentModel.ISupportInitialize)(this.chartFunc)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chartFunc)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 

@@ -60,7 +60,7 @@
             // 
             // SLAU
             // 
-            this.SLAU.Location = new System.Drawing.Point(457, 26);
+            this.SLAU.Location = new System.Drawing.Point(457, 132);
             this.SLAU.Name = "SLAU";
             this.SLAU.Size = new System.Drawing.Size(117, 85);
             this.SLAU.TabIndex = 3;
@@ -70,7 +70,7 @@
             // 
             // Intedral
             // 
-            this.Intedral.Location = new System.Drawing.Point(457, 132);
+            this.Intedral.Location = new System.Drawing.Point(634, 26);
             this.Intedral.Name = "Intedral";
             this.Intedral.Size = new System.Drawing.Size(117, 85);
             this.Intedral.TabIndex = 4;
@@ -100,7 +100,7 @@
             // 
             // Sort
             // 
-            this.Sort.Location = new System.Drawing.Point(637, 26);
+            this.Sort.Location = new System.Drawing.Point(634, 132);
             this.Sort.Name = "Sort";
             this.Sort.Size = new System.Drawing.Size(117, 85);
             this.Sort.TabIndex = 7;
@@ -110,7 +110,7 @@
             // 
             // buttonMPKS
             // 
-            this.buttonMPKS.Location = new System.Drawing.Point(637, 132);
+            this.buttonMPKS.Location = new System.Drawing.Point(457, 26);
             this.buttonMPKS.Name = "buttonMPKS";
             this.buttonMPKS.Size = new System.Drawing.Size(117, 85);
             this.buttonMPKS.TabIndex = 8;

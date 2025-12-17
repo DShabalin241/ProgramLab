@@ -210,6 +210,7 @@
             this.buttonBack.TabIndex = 17;
             this.buttonBack.Text = "Назад";
             this.buttonBack.UseVisualStyleBackColor = true;
+            this.buttonBack.Click += new System.EventHandler(this.buttonBack_Click);
             // 
             // Dichotomy
             // 
