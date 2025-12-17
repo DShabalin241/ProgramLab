@@ -779,5 +779,7 @@ namespace ProgramLab
 
             chartFunc.Invalidate();
         }
+
+      
     }
 }

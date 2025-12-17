@@ -1,866 +1,762 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Data;
 using System.Drawing;
+using System.Globalization;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
-using System.Globalization;
-using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.Linq;
-using NCalc;
-using ProgramLab;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace ProgramLab
 {
     public partial class Dichotomy : Form
     {
-        private List<double> foundRoots = new List<double>();
+        private const double MAX_Y_VALUE = 10;
+        private const double ZERO_TOLERANCE = 1e-10;
 
         public Dichotomy()
         {
             InitializeComponent();
+            SetupChart();
+            SetupEventHandlers();
+        }
+
+        private void SetupChart()
+        {
+            chartFunc.Series.Clear();
+
+            Series functionSeries = new Series("Функция")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Blue,
+                BorderWidth = 2
+            };
+            chartFunc.Series.Add(functionSeries);
+
+            Series intervalSeries = new Series("Интервал")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Red,
+                BorderWidth = 2,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartFunc.Series.Add(intervalSeries);
+
+            // Красные точки для корней
+            Series rootsSeries = new Series("Корни")
+            {
+                ChartType = SeriesChartType.Point,
+                Color = Color.Red,
+                MarkerStyle = MarkerStyle.Circle,
+                MarkerSize = 8
+            };
+            chartFunc.Series.Add(rootsSeries);
+
+            // Серия для вертикальных асимптот
+            Series asymptotesSeries = new Series("Асимптоты")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Gray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.DashDotDot
+            };
+            chartFunc.Series.Add(asymptotesSeries);
+
+            Series xAxisSeries = new Series("Ось X (y=0)")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.DarkGray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartFunc.Series.Add(xAxisSeries);
+
+            Series yAxisSeries = new Series("Ось Y (x=0)")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.DarkGray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartFunc.Series.Add(yAxisSeries);
+
+            chartFunc.ChartAreas[0].AxisX.Title = "X";
+            chartFunc.ChartAreas[0].AxisY.Title = "Y";
+            chartFunc.ChartAreas[0].AxisX.Minimum = -10;
+            chartFunc.ChartAreas[0].AxisX.Maximum = 10;
+            chartFunc.ChartAreas[0].AxisY.Minimum = -MAX_Y_VALUE;
+            chartFunc.ChartAreas[0].AxisY.Maximum = MAX_Y_VALUE;
+        }
+
+        private void SetupEventHandlers()
+        {
+            textBoxA.KeyPress += TextBoxNumber_KeyPress;
+            textBoxB.KeyPress += TextBoxNumber_KeyPress;
+            textBoxE.KeyPress += TextBoxEpsilon_KeyPress;
+            textBoxF.KeyPress += TextBoxFunction_KeyPress;
+
             buttonStart.Click += ButtonStart_Click;
             buttonChart.Click += ButtonChart_Click;
             buttonClear.Click += ButtonClear_Click;
-            SetupInputValidation();
         }
 
-        private void SetupInputValidation()
-        {
-            var numberTextBoxes = new[] { textBoxA, textBoxB, textBoxE };
-            foreach (var textBox in numberTextBoxes)
-            {
-                textBox.KeyPress += (sender, e) =>
-                {
-                    var tb = sender as TextBox;
-                    char decimalSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
-                    char altSeparator = (decimalSeparator == ',') ? '.' : ',';
-
-                    bool isDigit = char.IsDigit(e.KeyChar);
-                    bool isBackspace = e.KeyChar == '\b';
-                    bool isMinus = e.KeyChar == '-' && (tb.SelectionStart == 0 || tb.Text.Length == 0);
-                    bool isSeparator = (e.KeyChar == decimalSeparator || e.KeyChar == altSeparator) &&
-                                       !tb.Text.Contains(decimalSeparator) &&
-                                       !tb.Text.Contains(altSeparator);
-
-                    if (!isDigit && !isBackspace && !isMinus && !isSeparator)
-                        e.Handled = true;
-                };
-            }
-
-            textBoxE.KeyPress += (sender, e) =>
-            {
-                if (!char.IsDigit(e.KeyChar) && e.KeyChar != '\b')
-                    e.Handled = true;
-            };
-        }
-
-        private void ButtonClear_Click(object sender, EventArgs e)
-        {
-            // Очищаем все текстовые поля
-            textBoxF.Clear();
-            textBoxA.Clear();
-            textBoxB.Clear();
-            textBoxE.Clear();
-            textBoxX.Clear();
-            textBoxY.Clear();
-
-            // Очищаем график
-            ClearChartData();
-            foundRoots.Clear();
-        }
-
-        private double EvaluateSimpleFunction(string expression, double x)
+        private double EvaluateFunction(string function, double x)
         {
             try
             {
-                expression = expression.Trim().ToLower();
+                string expression = function.ToLower();
 
-                // Убираем лишние пробелы
-                expression = Regex.Replace(expression, @"\s+", "");
-
-                // Проверяем, является ли выражение параболой вида ax^2 + bx + c
-                if (IsQuadraticFunction(expression, out double a, out double b, out double c))
+                // Обработка ctg
+                expression = Regex.Replace(expression, @"ctg\s*\(\s*(.*?)\s*\)", match =>
                 {
-                    return a * x * x + b * x + c;
-                }
-
-                // Обработка функций sin(x)
-                if (expression.StartsWith("sin(") && expression.EndsWith(")"))
-                {
-                    return EvaluateTrigonometricArgument(expression, x, Math.Sin);
-                }
-                // Обработка функций cos(x)
-                else if (expression.StartsWith("cos(") && expression.EndsWith(")"))
-                {
-                    return EvaluateTrigonometricArgument(expression, x, Math.Cos);
-                }
-                // Обработка функций tan(x)
-                else if (expression.StartsWith("tan(") && expression.EndsWith(")"))
-                {
-                    return EvaluateTrigonometricArgument(expression, x, Math.Tan);
-                }
-                // Обработка функций ctg(x) - котангенс
-                else if (expression.StartsWith("ctg(") && expression.EndsWith(")"))
-                {
-                    return EvaluateCtgArgument(expression, x);
-                }
-                // Обработка функций ln(x) - натуральный логарифм
-                else if (expression.StartsWith("ln(") && expression.EndsWith(")"))
-                {
-                    return EvaluateLogArgument(expression, x, Math.Log);
-                }
-                // Обработка функций exp(x) - экспонента
-                else if (expression.StartsWith("exp(") && expression.EndsWith(")"))
-                {
-                    return EvaluateExpArgument(expression, x);
-                }
-
-                // Если это не простая функция, используем NCalc
-                return EvaluateFunctionWithNCalc(expression, x);
-            }
-            catch (Exception ex)
-            {
-                // В случае ошибки возвращаем NaN
-                return double.NaN;
-            }
-        }
-
-        private bool IsQuadraticFunction(string expression, out double a, out double b, out double c)
-        {
-            a = 0; b = 0; c = 0;
-
-            // Упрощаем выражение
-            expression = expression.Replace(" ", "");
-
-            // Паттерны для параболы
-            // 1. ax^2 + bx + c
-            // 2. x^2 + bx + c
-            // 3. ax^2 + c
-            // 4. x^2 + c
-            // 5. ax^2
-            // 6. x^2
-
-            // Проверяем наличие x^2
-            if (!expression.Contains("x^2") && !expression.Contains("x*x") && !expression.Contains("pow(x,2)"))
-                return false;
-
-            try
-            {
-                // Заменяем x^2 на x*x для упрощения парсинга
-                expression = expression.Replace("x^2", "x*x");
-
-                // Если выражение содержит сложные операции кроме +, -, *, /, то это не простая парабола
-                if (expression.Contains("sin(") || expression.Contains("cos(") ||
-                    expression.Contains("tan(") || expression.Contains("ln(") ||
-                    expression.Contains("exp(") || expression.Contains("sqrt(") ||
-                    expression.Contains("/x") || expression.Contains("1/"))
-                    return false;
-
-                // Разбираем выражение на части
-                string pattern = @"([+-]?\d*\.?\d*)\*?x\*x|([+-]?\d*\.?\d*)\*?x|([+-]?\d+\.?\d*)";
-                var matches = Regex.Matches(expression, pattern);
-
-                foreach (Match match in matches)
-                {
-                    if (match.Groups[1].Success) // Коэффициент для x^2
-                    {
-                        string coeff = match.Groups[1].Value;
-                        if (string.IsNullOrEmpty(coeff) || coeff == "+")
-                            a += 1;
-                        else if (coeff == "-")
-                            a -= 1;
-                        else
-                            a += double.Parse(coeff, CultureInfo.InvariantCulture);
-                    }
-                    else if (match.Groups[2].Success) // Коэффициент для x
-                    {
-                        string coeff = match.Groups[2].Value;
-                        if (string.IsNullOrEmpty(coeff) || coeff == "+")
-                            b += 1;
-                        else if (coeff == "-")
-                            b -= 1;
-                        else
-                            b += double.Parse(coeff, CultureInfo.InvariantCulture);
-                    }
-                    else if (match.Groups[3].Success) // Свободный член
-                    {
-                        c += double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
-                    }
-                }
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private double EvaluateTrigonometricArgument(string expression, double x, Func<double, double> trigFunction)
-        {
-            // Извлекаем аргумент из скобок
-            string argStr = expression.Substring(4, expression.Length - 5);
-
-            // Если аргумент просто x
-            if (argStr == "x")
-            {
-                return trigFunction(x);
-            }
-            // Если аргумент содержит x с коэффициентом (например, sin(2x), sin(3*x))
-            else if (Regex.IsMatch(argStr, @"^(\d+\.?\d*)?\*?x$"))
-            {
-                double coefficient = 1.0;
-                string coeffStr = argStr.Replace("*x", "").Replace("x", "");
-
-                if (!string.IsNullOrEmpty(coeffStr))
-                {
-                    coefficient = double.Parse(coeffStr, CultureInfo.InvariantCulture);
-                }
-
-                return trigFunction(coefficient * x);
-            }
-            // Если аргумент сложный, используем NCalc
-            else
-            {
-                Expression e = new Expression(argStr);
-                e.Parameters["x"] = x;
-                e.Parameters["pi"] = Math.PI;
-                e.Parameters["e"] = Math.E;
-
-                var result = e.Evaluate();
-                return trigFunction(Convert.ToDouble(result));
-            }
-        }
-
-        private double EvaluateCtgArgument(string expression, double x)
-        {
-            // ctg(x) = cos(x)/sin(x) = 1/tan(x)
-            // Извлекаем аргумент из скобок
-            string argStr = expression.Substring(4, expression.Length - 5);
-
-            double argumentValue;
-
-            // Если аргумент просто x
-            if (argStr == "x")
-            {
-                argumentValue = x;
-            }
-            // Если аргумент содержит x с коэффициентом
-            else if (Regex.IsMatch(argStr, @"^(\d+\.?\d*)?\*?x$"))
-            {
-                double coefficient = 1.0;
-                string coeffStr = argStr.Replace("*x", "").Replace("x", "");
-
-                if (!string.IsNullOrEmpty(coeffStr))
-                {
-                    coefficient = double.Parse(coeffStr, CultureInfo.InvariantCulture);
-                }
-
-                argumentValue = coefficient * x;
-            }
-            // Если аргумент сложный, используем NCalc
-            else
-            {
-                Expression e = new Expression(argStr);
-                e.Parameters["x"] = x;
-                e.Parameters["pi"] = Math.PI;
-                e.Parameters["e"] = Math.E;
-
-                var result = e.Evaluate();
-                argumentValue = Convert.ToDouble(result);
-            }
-
-            // Вычисляем ctg(x) = cos(x)/sin(x)
-            double sinValue = Math.Sin(argumentValue);
-
-            // Проверяем, чтобы sin(x) не был равен 0 (деление на ноль)
-            if (Math.Abs(sinValue) < 1e-15)
-            {
-                return double.NaN;
-            }
-
-            return Math.Cos(argumentValue) / sinValue;
-        }
-
-        private double EvaluateLogArgument(string expression, double x, Func<double, double> logFunction)
-        {
-            // ln(x) - натуральный логарифм
-            // Извлекаем аргумент из скобок
-            string argStr = expression.Substring(3, expression.Length - 4);
-
-            double argumentValue;
-
-            // Если аргумент просто x
-            if (argStr == "x")
-            {
-                argumentValue = x;
-            }
-            // Если аргумент содержит x с коэффициентом
-            else if (Regex.IsMatch(argStr, @"^(\d+\.?\d*)?\*?x$"))
-            {
-                double coefficient = 1.0;
-                string coeffStr = argStr.Replace("*x", "").Replace("x", "");
-
-                if (!string.IsNullOrEmpty(coeffStr))
-                {
-                    coefficient = double.Parse(coeffStr, CultureInfo.InvariantCulture);
-                }
-
-                argumentValue = coefficient * x;
-            }
-            // Если аргумент сложный, используем NCalc
-            else
-            {
-                Expression e = new Expression(argStr);
-                e.Parameters["x"] = x;
-                e.Parameters["pi"] = Math.PI;
-                e.Parameters["e"] = Math.E;
-
-                var result = e.Evaluate();
-                argumentValue = Convert.ToDouble(result);
-            }
-
-            // Проверяем, чтобы аргумент логарифма был положительным
-            if (argumentValue <= 0)
-            {
-                return double.NaN;
-            }
-
-            return logFunction(argumentValue);
-        }
-
-        private double EvaluateExpArgument(string expression, double x)
-        {
-            // exp(x) - экспонента
-            // Извлекаем аргумент из скобок
-            string argStr = expression.Substring(4, expression.Length - 5);
-
-            double argumentValue;
-
-            // Если аргумент просто x
-            if (argStr == "x")
-            {
-                argumentValue = x;
-            }
-            // Если аргумент содержит x с коэффициентом
-            else if (Regex.IsMatch(argStr, @"^(\d+\.?\d*)?\*?x$"))
-            {
-                double coefficient = 1.0;
-                string coeffStr = argStr.Replace("*x", "").Replace("x", "");
-
-                if (!string.IsNullOrEmpty(coeffStr))
-                {
-                    coefficient = double.Parse(coeffStr, CultureInfo.InvariantCulture);
-                }
-
-                argumentValue = coefficient * x;
-            }
-            // Если аргумент сложный, используем NCalc
-            else
-            {
-                Expression e = new Expression(argStr);
-                e.Parameters["x"] = x;
-                e.Parameters["pi"] = Math.PI;
-                e.Parameters["e"] = Math.E;
-
-                var result = e.Evaluate();
-                argumentValue = Convert.ToDouble(result);
-            }
-
-            return Math.Exp(argumentValue);
-        }
-
-        private double EvaluateFunctionWithNCalc(string expression, double x)
-        {
-            try
-            {
-                expression = expression.Replace(',', '.');
-
-                // Преобразуем оператор ^ в функцию Pow
-                expression = ConvertPowerOperator(expression);
-
-                // Заменяем ctg на 1/tan для NCalc
-                expression = expression.Replace("ctg(", "1/tan(");
-                expression = expression.Replace("Ctg(", "1/tan(");
-                expression = expression.Replace("CTG(", "1/tan(");
-
-                Expression e = new Expression(expression);
-                e.Parameters["x"] = x;
-                e.Parameters["pi"] = Math.PI;
-                e.Parameters["e"] = Math.E;
-
-                e.Parameters["sin"] = new Func<double, double>(Math.Sin);
-                e.Parameters["cos"] = new Func<double, double>(Math.Cos);
-                e.Parameters["tan"] = new Func<double, double>(Math.Tan);
-                e.Parameters["ctg"] = new Func<double, double>((arg) =>
-                {
-                    double tanVal = Math.Tan(arg);
-                    return Math.Abs(tanVal) < 1e-15 ? double.NaN : 1.0 / tanVal;
+                    string arg = match.Groups[1].Value;
+                    return $"(1/tan({arg}))";
                 });
-                e.Parameters["log"] = new Func<double, double>(Math.Log10);
-                e.Parameters["ln"] = new Func<double, double>(Math.Log);
-                e.Parameters["exp"] = new Func<double, double>(Math.Exp);
-                e.Parameters["sqrt"] = new Func<double, double>(Math.Sqrt);
-                e.Parameters["abs"] = new Func<double, double>(Math.Abs);
-                e.Parameters["Pow"] = new Func<double, double, double>(Math.Pow);
 
-                var result = e.Evaluate();
-                return Convert.ToDouble(result);
+                // Замена констант
+                expression = expression
+                    .Replace("pi", Math.PI.ToString(CultureInfo.InvariantCulture))
+                    .Replace("e", Math.E.ToString(CultureInfo.InvariantCulture));
+
+                expression = ReplaceXInExpression(expression, x);
+
+                // Обработка тригонометрических функций
+                expression = Regex.Replace(expression, @"sin\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    return Math.Sin(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"cos\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    return Math.Cos(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"tan\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    double cos = Math.Cos(arg);
+                    if (Math.Abs(cos) < 1e-15)
+                        throw new DivideByZeroException("Тангенс не определен");
+                    return Math.Tan(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"exp\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    return Math.Exp(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"sqrt\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    if (arg < 0)
+                        throw new ArgumentException("Корень из отрицательного числа");
+                    return Math.Sqrt(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"log\((.*?),(.*?)\)", match =>
+                {
+                    double num = EvaluateSimpleExpression(match.Groups[1].Value);
+                    double baseVal = EvaluateSimpleExpression(match.Groups[2].Value);
+                    if (num <= 0 || baseVal <= 0 || baseVal == 1)
+                        throw new ArgumentException("Логарифм не определен");
+                    return Math.Log(num, baseVal).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"ln\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    if (arg <= 0)
+                        throw new ArgumentException("Натуральный логарифм не определен");
+                    return Math.Log(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = ProcessPowers(expression);
+
+                return EvaluateSimpleExpression(expression);
             }
             catch (Exception ex)
             {
-                // Возвращаем NaN для неопределенных точек
-                return double.NaN;
+                throw new Exception($"Ошибка вычисления функции: {ex.Message}");
             }
         }
 
-        private double EvaluateFunction(string expression, double x)
+        private string ReplaceXInExpression(string expression, double x)
         {
-            // Сначала проверяем, является ли выражение простой функцией
-            string lowerExpr = expression.ToLower();
-
-            // Проверяем простые функции, включая параболы
-            if (lowerExpr.Contains("sin(") || lowerExpr.Contains("cos(") ||
-                lowerExpr.Contains("tan(") || lowerExpr.Contains("tg(") ||
-                lowerExpr.Contains("ctg(") || lowerExpr.Contains("ln(") ||
-                lowerExpr.Contains("exp(") || lowerExpr.Contains("x^2") ||
-                lowerExpr.Contains("x*x") || IsQuadraticExpression(lowerExpr))
+            expression = Regex.Replace(expression, @"x\^(\d+(?:\.\d+)?)", match =>
             {
-                // Используем оптимизированный метод для простых функций
-                return EvaluateSimpleFunction(expression, x);
-            }
+                double exponent = double.Parse(match.Groups[1].Value);
+                return Math.Pow(x, exponent).ToString(CultureInfo.InvariantCulture);
+            });
 
-            // Для всех других функций используем NCalc
-            return EvaluateFunctionWithNCalc(expression, x);
+            expression = expression.Replace("x", x.ToString(CultureInfo.InvariantCulture));
+
+            return expression;
         }
 
-        private bool IsQuadraticExpression(string expression)
+        private string ProcessPowers(string expression)
         {
-            // Проверяем, является ли выражение квадратичной функцией
-            expression = expression.Replace(" ", "");
-            return expression.Contains("x^2") || expression.Contains("x*x") || expression.Contains("pow(x,2)");
-        }
+            var matches = Regex.Matches(expression, @"(\d+(?:\.\d+)?|\([^)]+\))\^(\d+(?:\.\d+)?|\([^)]+\))");
 
-        private bool IsHyperbola(string expression)
-        {
-            // Проверяем, содержит ли выражение гиперболу
-            expression = expression.ToLower();
-            return expression.Contains("1/x") || expression.Contains("1/(x)") ||
-                   expression.Contains("x^(-1)") || expression.Contains("x**-1") ||
-                   Regex.IsMatch(expression, @"x\s*\/\s*[^+\-*/()]+") ||
-                   Regex.IsMatch(expression, @"[^+\-*/()]+\s*\/\s*x");
-        }
-
-        private bool IsTrigonometricFunction(string expression)
-        {
-            // Проверяем, является ли функция тригонометрической
-            expression = expression.ToLower();
-            return expression.Contains("sin(") || expression.Contains("cos(") ||
-                   expression.Contains("tan(") || expression.Contains("tg(") ||
-                   expression.Contains("ctg(");
-        }
-
-        private bool IsLogarithmicFunction(string expression)
-        {
-            // Проверяем, является ли функция логарифмической
-            expression = expression.ToLower();
-            return expression.Contains("ln(") || expression.Contains("log(");
-        }
-
-        private bool IsExponentialFunction(string expression)
-        {
-            // Проверяем, является ли функция экспоненциальной
-            expression = expression.ToLower();
-            return expression.Contains("exp(") || expression.Contains("e^");
-        }
-
-        private bool IsQuadraticFunction(string expression)
-        {
-            // Проверяем, является ли функция квадратичной
-            expression = expression.ToLower();
-            return expression.Contains("x^2") || expression.Contains("x*x") || expression.Contains("pow(x,2)");
-        }
-
-        private bool IsContinuousFunction(string expression)
-        {
-            // Определяем, является ли функция непрерывной на всей области определения
-            expression = expression.ToLower();
-
-            // Непрерывные функции: sin, cos, exp, полиномы, включая параболы
-            // Разрывные: tan, ctg, ln (на отрицательных и нуле), 1/x
-            if (expression.Contains("tan(") || expression.Contains("tg(") ||
-                expression.Contains("ctg(") || expression.Contains("1/x") ||
-                expression.Contains("ln(") || expression.Contains("log("))
+            foreach (Match match in matches)
             {
-                return false;
+                if (match.Success)
+                {
+                    string baseStr = match.Groups[1].Value;
+                    string expStr = match.Groups[2].Value;
+
+                    if (baseStr.StartsWith("(") && baseStr.EndsWith(")"))
+                        baseStr = baseStr.Substring(1, baseStr.Length - 2);
+                    if (expStr.StartsWith("(") && expStr.EndsWith(")"))
+                        expStr = expStr.Substring(1, expStr.Length - 2);
+
+                    double baseVal = EvaluateSimpleExpression(baseStr);
+                    double exponent = EvaluateSimpleExpression(expStr);
+
+                    expression = expression.Replace(match.Value,
+                        Math.Pow(baseVal, exponent).ToString(CultureInfo.InvariantCulture));
+                }
             }
 
-            return true;
+            return expression;
         }
 
-        private string ConvertPowerOperator(string expression)
+        private double EvaluateSimpleExpression(string expression)
         {
-            // Преобразуем оператор ^ в Pow для NCalc
-            return Regex.Replace(expression, @"([a-zA-Z0-9\.\(\)]+)\s*\^\s*([a-zA-Z0-9\.\(\)]+)", "Pow($1, $2)");
+            DataTable table = new DataTable();
+            expression = expression.Replace(",", ".");
+            table.Columns.Add("expression", typeof(string), expression);
+            DataRow row = table.NewRow();
+            table.Rows.Add(row);
+            return double.Parse((string)row["expression"]);
         }
 
-        private List<(double x, double y)> FindAllRoots(string function, double a, double b, int precision)
+        private List<(double x, double y)> FindRootsDichotomy(string function, double a, double b, double epsilon)
         {
             List<(double x, double y)> roots = new List<(double, double)>();
 
-            if (precision < 0 || precision > 15)
-                return roots;
+            // Количество интервалов для поиска смены знака
+            int intervals = 100;
+            double step = (b - a) / intervals;
 
-            double epsilon = Math.Pow(10, -precision);
-
-            // Проверяем, является ли функция гиперболой
-            if (IsHyperbola(function))
+            for (int i = 0; i < intervals; i++)
             {
-                // Для гиперболы нет корней (кроме x=0, что невозможно)
-                return roots;
-            }
+                double x1 = a + i * step;
+                double x2 = x1 + step;
 
-            // Проверяем, является ли функция ln(x) - у нее только один корень в x=1
-            if (function.ToLower().Contains("ln(x)"))
-            {
-                // Проверяем, попадает ли x=1 в интервал [a, b]
-                if (a <= 1 && 1 <= b)
+                try
                 {
-                    double y = EvaluateFunction(function, 1);
-                    if (Math.Abs(y) < epsilon)
+                    double f1 = EvaluateFunction(function, x1);
+                    double f2 = EvaluateFunction(function, x2);
+
+                    // Проверяем смену знака функции
+                    if (Math.Sign(f1) != Math.Sign(f2) && !double.IsNaN(f1) && !double.IsNaN(f2))
                     {
-                        roots.Add((1, y));
-                    }
-                }
-            }
+                        // Применяем метод дихотомии для уточнения корня
+                        double root = DichotomyMethod(function, x1, x2, epsilon);
+                        double y = EvaluateFunction(function, root);
 
-            // Проверяем, является ли функция квадратичной
-            bool isQuadratic = IsQuadraticFunction(function);
-
-            // Для квадратичных функций используем аналитическое решение
-            if (isQuadratic && IsQuadraticFunction(function, out double A, out double B, out double C))
-            {
-                double discriminant = B * B - 4 * A * C;
-
-                if (discriminant < 0)
-                {
-                    // Нет действительных корней
-                    return roots;
-                }
-                else if (Math.Abs(discriminant) < epsilon)
-                {
-                    // Один корень (кратности 2)
-                    double x = -B / (2 * A);
-                    if (x >= a && x <= b)
-                    {
-                        double y = EvaluateFunction(function, x);
+                        // Проверяем, что найденный корень действительно близок к нулю
                         if (Math.Abs(y) < epsilon * 10)
                         {
-                            roots.Add((x, y));
-                        }
-                    }
-                }
-                else
-                {
-                    // Два корня
-                    double sqrtD = Math.Sqrt(discriminant);
-                    double x1 = (-B - sqrtD) / (2 * A);
-                    double x2 = (-B + sqrtD) / (2 * A);
-
-                    // Добавляем корни, попадающие в интервал
-                    if (x1 >= a && x1 <= b)
-                    {
-                        double y1 = EvaluateFunction(function, x1);
-                        if (Math.Abs(y1) < epsilon * 10)
-                        {
-                            roots.Add((x1, y1));
-                        }
-                    }
-
-                    if (x2 >= a && x2 <= b)
-                    {
-                        double y2 = EvaluateFunction(function, x2);
-                        if (Math.Abs(y2) < epsilon * 10)
-                        {
-                            roots.Add((x2, y2));
-                        }
-                    }
-                }
-
-                return roots;
-            }
-
-            // Определяем количество шагов в зависимости от типа функции
-            int steps;
-            if (IsTrigonometricFunction(function))
-            {
-                // Для тригонометрических функций используем больше шагов
-                steps = Math.Min(5000, (int)((b - a) * 100));
-                steps = Math.Max(steps, 100);
-            }
-            else if (IsExponentialFunction(function) || IsLogarithmicFunction(function))
-            {
-                // Для экспоненциальных и логарифмических функций используем среднее количество шагов
-                steps = Math.Min(3000, (int)((b - a) * 75));
-                steps = Math.Max(steps, 100);
-            }
-            else
-            {
-                steps = Math.Min(2000, (int)((b - a) * 50));
-                steps = Math.Max(steps, 100);
-            }
-
-            double step = (b - a) / steps;
-
-            double prevX = a;
-            double prevY = EvaluateFunction(function, a);
-
-            for (int i = 1; i <= steps; i++)
-            {
-                double currentX = a + i * step;
-                double currentY = EvaluateFunction(function, currentX);
-
-                // Проверяем наличие корня на отрезке [prevX, currentX]
-                if (!double.IsNaN(prevY) && !double.IsNaN(currentY))
-                {
-                    // Проверяем изменение знака (только для корней нечётной кратности)
-                    if (prevY * currentY < 0)
-                    {
-                        // Уточняем корень методом дихотомии на этом отрезке
-                        var root = FindRootOnSegment(function, prevX, currentX, precision);
-                        if (root.HasValue)
-                        {
-                            double rootX = root.Value.x;
-                            double rootY = root.Value.y;
-
-                            // Проверяем, не добавлен ли уже этот корень (для касаний)
+                            // Проверяем на дубликаты
                             bool isDuplicate = false;
                             foreach (var existingRoot in roots)
                             {
-                                if (Math.Abs(existingRoot.x - rootX) < epsilon)
+                                if (Math.Abs(existingRoot.x - root) < epsilon * 10)
                                 {
                                     isDuplicate = true;
                                     break;
                                 }
                             }
 
-                            if (!isDuplicate && !double.IsNaN(rootY))
+                            if (!isDuplicate)
                             {
-                                roots.Add((rootX, rootY));
+                                roots.Add((root, y));
                             }
                         }
                     }
-                    // Проверяем близость к нулю
-                    else if (Math.Abs(prevY) < epsilon || Math.Abs(currentY) < epsilon)
+                    // Проверяем, если функция точно равна нулю в одной из точек
+                    else if (Math.Abs(f1) < epsilon)
                     {
-                        double rootX = Math.Abs(prevY) < epsilon ? prevX : currentX;
-                        double rootY = Math.Abs(prevY) < epsilon ? prevY : currentY;
-
-                        // Проверяем, не добавлен ли уже этот корень
                         bool isDuplicate = false;
                         foreach (var existingRoot in roots)
                         {
-                            if (Math.Abs(existingRoot.x - rootX) < epsilon)
+                            if (Math.Abs(existingRoot.x - x1) < epsilon * 10)
                             {
                                 isDuplicate = true;
                                 break;
                             }
                         }
 
-                        if (!isDuplicate && !double.IsNaN(rootY))
+                        if (!isDuplicate)
                         {
-                            roots.Add((rootX, rootY));
+                            roots.Add((x1, f1));
+                        }
+                    }
+                    else if (Math.Abs(f2) < epsilon)
+                    {
+                        bool isDuplicate = false;
+                        foreach (var existingRoot in roots)
+                        {
+                            if (Math.Abs(existingRoot.x - x2) < epsilon * 10)
+                            {
+                                isDuplicate = true;
+                                break;
+                            }
+                        }
+
+                        if (!isDuplicate)
+                        {
+                            roots.Add((x2, f2));
                         }
                     }
                 }
-
-                prevX = currentX;
-                prevY = currentY;
-            }
-
-            // Сортируем корни по возрастанию X
-            roots = roots.OrderBy(r => r.x).ToList();
-
-            // Объединяем близкие корни (для случаев касаний и точности вычислений)
-            return MergeCloseRoots(roots, epsilon);
-        }
-
-        private List<(double x, double y)> MergeCloseRoots(List<(double x, double y)> roots, double epsilon)
-        {
-            if (roots.Count == 0)
-                return roots;
-
-            List<(double x, double y)> merged = new List<(double, double)>();
-            merged.Add(roots[0]);
-
-            for (int i = 1; i < roots.Count; i++)
-            {
-                var lastRoot = merged[merged.Count - 1];
-                var currentRoot = roots[i];
-
-                // Если корни слишком близки (в пределах точности), пропускаем
-                if (Math.Abs(currentRoot.x - lastRoot.x) > epsilon * 10)
+                catch
                 {
-                    merged.Add(currentRoot);
-                }
-                else
-                {
-                    // Для близких корней выбираем среднее значение
-                    double avgX = (lastRoot.x + currentRoot.x) / 2;
-                    double avgY = (lastRoot.y + currentRoot.y) / 2;
-                    merged[merged.Count - 1] = (avgX, avgY);
+                    // Пропускаем интервалы, где функция не определена
+                    continue;
                 }
             }
 
-            return merged;
+            return roots.OrderBy(r => r.x).ToList();
         }
 
-        private (double x, double y)? FindRootOnSegment(string function, double a, double b, int precision)
+        private double DichotomyMethod(string function, double a, double b, double epsilon)
         {
-            double epsilon = Math.Pow(10, -precision);
-
-            double fa = EvaluateFunction(function, a);
-            double fb = EvaluateFunction(function, b);
-
-            if (double.IsNaN(fa) || double.IsNaN(fb))
-                return null;
-
-            // Уже проверено, что fa * fb < 0
             double left = a;
             double right = b;
-            double fLeft = fa;
+            int maxIterations = 1000;
+            int iteration = 0;
 
-            int iterations = 0;
-            double x = 0;
-
-            while (Math.Abs(right - left) > epsilon && iterations < 1000)
+            while (Math.Abs(right - left) > epsilon && iteration < maxIterations)
             {
-                iterations++;
-                x = (left + right) / 2;
-                double fx = EvaluateFunction(function, x);
+                double mid = (left + right) / 2;
 
-                if (double.IsNaN(fx))
-                    break;
-
-                if (Math.Abs(fx) < epsilon)
-                    break;
-
-                if (fLeft * fx < 0)
-                    right = x;
-                else
+                try
                 {
-                    left = x;
-                    fLeft = fx;
+                    double fLeft = EvaluateFunction(function, left);
+                    double fMid = EvaluateFunction(function, mid);
+
+                    if (Math.Sign(fLeft) == Math.Sign(fMid))
+                    {
+                        left = mid;
+                    }
+                    else
+                    {
+                        right = mid;
+                    }
+                }
+                catch
+                {
+                    // Если функция не определена в середине, смещаем границы
+                    double delta = (right - left) / 4;
+                    left += delta;
+                    right -= delta;
+                }
+
+                iteration++;
+            }
+
+            return (left + right) / 2;
+        }
+
+        private void PlotFunction(string function, double a, double b)
+        {
+
+            foreach (Series series in chartFunc.Series)
+            {
+                series.Points.Clear();
+            }
+
+            double xMin = Math.Min(a, b) - Math.Abs(b - a) * 0.2;
+            double xMax = Math.Max(a, b) + Math.Abs(b - a) * 0.2;
+
+
+            chartFunc.ChartAreas[0].AxisX.Minimum = xMin;
+            chartFunc.ChartAreas[0].AxisX.Maximum = xMax;
+
+            int pointsCount = 1000;
+            double step = (b - a) / pointsCount;
+
+            List<double> validYValues = new List<double>();
+            List<double> discontinuityPoints = new List<double>();
+
+            // Построение основного графика функции
+            for (int i = 0; i <= pointsCount; i++)
+            {
+                double x = a + i * step;
+
+                try
+                {
+                    double y = EvaluateFunction(function, x);
+
+                    if (double.IsInfinity(y) || double.IsNaN(y))
+                    {
+                        chartFunc.Series["Функция"].Points.AddXY(x, double.NaN);
+
+                        // Добавляем точку разрыва для проверки на асимптоты
+                        discontinuityPoints.Add(x);
+                    }
+                    else
+                    {
+                        chartFunc.Series["Функция"].Points.AddXY(x, y);
+                        validYValues.Add(y);
+                    }
+                }
+                catch
+                {
+                    chartFunc.Series["Функция"].Points.AddXY(x, double.NaN);
+                    discontinuityPoints.Add(x);
+                }
+            }
+            FindAsymptotes(function, a, b, discontinuityPoints, xMin, xMax);
+            // Находим вертикальные асимптоты
+        
+
+            if (validYValues.Count > 0)
+            {
+                double yMin = validYValues.Min();
+                double yMax = validYValues.Max();
+                double yRange = yMax - yMin;
+
+                if (yRange < 1e-10)
+                {
+                    yMin -= 1;
+                    yMax += 1;
+                    yRange = 2;
+                }
+
+                chartFunc.ChartAreas[0].AxisY.Minimum = yMin - yRange * 0.1;
+                chartFunc.ChartAreas[0].AxisY.Maximum = yMax + yRange * 0.1;
+
+                chartFunc.ChartAreas[0].AxisY.Minimum = Math.Max(chartFunc.ChartAreas[0].AxisY.Minimum, -MAX_Y_VALUE);
+                chartFunc.ChartAreas[0].AxisY.Maximum = Math.Min(chartFunc.ChartAreas[0].AxisY.Maximum, MAX_Y_VALUE);
+
+                double lineY1 = chartFunc.ChartAreas[0].AxisY.Minimum;
+                double lineY2 = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                chartFunc.Series["Интервал"].Points.AddXY(a, lineY1);
+                chartFunc.Series["Интервал"].Points.AddXY(a, lineY2);
+                chartFunc.Series["Интервал"].Points.AddXY(double.NaN, double.NaN);
+
+                chartFunc.Series["Интервал"].Points.AddXY(b, lineY1);
+                chartFunc.Series["Интервал"].Points.AddXY(b, lineY2);
+            }
+
+            // Рисуем оси координат
+            if (chartFunc.ChartAreas[0].AxisY.Minimum <= 0 &&
+                chartFunc.ChartAreas[0].AxisY.Maximum >= 0)
+            {
+                chartFunc.Series["Ось X (y=0)"].Points.AddXY(xMin, 0);
+                chartFunc.Series["Ось X (y=0)"].Points.AddXY(xMax, 0);
+            }
+
+            if (chartFunc.ChartAreas[0].AxisX.Minimum <= 0 &&
+                chartFunc.ChartAreas[0].AxisX.Maximum >= 0)
+            {
+                double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+                chartFunc.Series["Ось Y (x=0)"].Points.AddXY(0, yMin);
+                chartFunc.Series["Ось Y (x=0)"].Points.AddXY(0, yMax);
+            }
+
+            // Добавляем точки корней на график, если они есть
+            if (!string.IsNullOrWhiteSpace(textBoxX.Text) && textBoxX.Text != "нет")
+            {
+                string[] rootStrings = textBoxX.Text.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (string rootStr in rootStrings)
+                {
+                    if (double.TryParse(rootStr.Replace(",", "."), NumberStyles.Any,
+                        CultureInfo.InvariantCulture, out double root))
+                    {
+                        // Красная точка для корня
+                        chartFunc.Series["Корни"].Points.AddXY(root, 0);
+                    }
                 }
             }
 
-            x = (left + right) / 2;
-            double y = EvaluateFunction(function, x);
+            chartFunc.Invalidate();
+        }
 
-            if (double.IsNaN(y))
-                return null;
+        private void FindAsymptotes(string function, double a, double b, List<double> discontinuityPoints, double plotXMin, double plotXMax)
+        {
+            // Очищаем предыдущие асимптоты
+            chartFunc.Series["Асимптоты"].Points.Clear();
 
-            return (x, y);
+            if (discontinuityPoints.Count == 0)
+                return;
+
+            // Для поиска асимптот анализируем точки разрыва
+            // Асимптоты обычно в точках, где функция стремится к бесконечности
+            double step = (b - a) / 1000;
+
+            foreach (double discPoint in discontinuityPoints.Distinct())
+            {
+                // Проверяем окрестности точки разрыва
+                double leftLimit = 0, rightLimit = 0;
+                bool leftValid = false, rightValid = false;
+
+                // Проверяем левый предел
+                try
+                {
+                    for (double x = discPoint - step; x > discPoint - 10 * step; x -= step)
+                    {
+                        double y = EvaluateFunction(function, x);
+                        if (!double.IsInfinity(y) && !double.IsNaN(y))
+                        {
+                            leftLimit = y;
+                            leftValid = true;
+                            break;
+                        }
+                    }
+                }
+                catch { }
+
+                // Проверяем правый предел
+                try
+                {
+                    for (double x = discPoint + step; x < discPoint + 10 * step; x += step)
+                    {
+                        double y = EvaluateFunction(function, x);
+                        if (!double.IsInfinity(y) && !double.IsNaN(y))
+                        {
+                            rightLimit = y;
+                            rightValid = true;
+                            break;
+                        }
+                    }
+                }
+                catch { }
+
+                // Если один из пределов стремится к бесконечности или имеет большой скачок,
+                // считаем это асимптотой
+                if (leftValid && rightValid)
+                {
+                    // Проверяем на большой скачок значений
+                    if (Math.Abs(leftLimit - rightLimit) > MAX_Y_VALUE * 2)
+                    {
+                        // Рисуем вертикальную асимптоту
+                        double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                        double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                        chartFunc.Series["Асимптоты"].Points.AddXY(discPoint, yMin);
+                        chartFunc.Series["Асимптоты"].Points.AddXY(discPoint, yMax);
+                        chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
+                    }
+                }
+                else if (leftValid && Math.Abs(leftLimit) > MAX_Y_VALUE / 2)
+                {
+                    // Левый предел большой - вероятно асимптота
+                    double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                    double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                    chartFunc.Series["Асимптоты"].Points.AddXY(discPoint, yMin);
+                    chartFunc.Series["Асимптоты"].Points.AddXY(discPoint, yMax);
+                    chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
+                }
+                else if (rightValid && Math.Abs(rightLimit) > MAX_Y_VALUE / 2)
+                {
+                    // Правый предел большой - вероятно асимптота
+                    double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                    double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                    chartFunc.Series["Асимптоты"].Points.AddXY(discPoint, yMin);
+                    chartFunc.Series["Асимптоты"].Points.AddXY(discPoint, yMax);
+                    chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
+                }
+            }
+
+            // Проверяем специальные случаи для известных функций с асимптотами
+            string funcLower = function.ToLower().Replace(" ", "");
+
+            // Для тангенса - асимптоты в pi/2 + pi*n
+            if (funcLower.Contains("tan") || funcLower.Contains("tg"))
+            {
+                double pi = Math.PI;
+                double startX = Math.Floor(plotXMin / pi - 0.5) * pi + pi / 2;
+                double endX = Math.Ceiling(plotXMax / pi - 0.5) * pi + pi / 2;
+
+                for (double x = startX; x <= endX; x += pi)
+                {
+                    if (x >= a && x <= b)
+                    {
+                        double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                        double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                        chartFunc.Series["Асимптоты"].Points.AddXY(x, yMin);
+                        chartFunc.Series["Асимптоты"].Points.AddXY(x, yMax);
+                        chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
+                    }
+                }
+            }
+
+            // Для 1/x - асимптота в x=0
+            if (funcLower.Contains("1/x") || funcLower.Contains("x^-1") ||
+                Regex.IsMatch(funcLower, @"1\s*/\s*x") || Regex.IsMatch(funcLower, @"1\s*/\s*\(x"))
+            {
+                if (0 >= a && 0 <= b)
+                {
+                    double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                    double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                    chartFunc.Series["Асимптоты"].Points.AddXY(0, yMin);
+                    chartFunc.Series["Асимптоты"].Points.AddXY(0, yMax);
+                    chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
+                }
+            }
+
+            // Для котангенса - асимптоты в pi*n
+            if (funcLower.Contains("ctg") || funcLower.Contains("cot"))
+            {
+                double pi = Math.PI;
+                double startX = Math.Floor(plotXMin / pi) * pi;
+                double endX = Math.Ceiling(plotXMax / pi) * pi;
+
+                for (double x = startX; x <= endX; x += pi)
+                {
+                    if (x >= a && x <= b)
+                    {
+                        double yMin = chartFunc.ChartAreas[0].AxisY.Minimum;
+                        double yMax = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+                        chartFunc.Series["Асимптоты"].Points.AddXY(x, yMin);
+                        chartFunc.Series["Асимптоты"].Points.AddXY(x, yMax);
+                        chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
+                    }
+                }
+            }
+        }
+
+        private void TextBoxNumber_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            System.Windows.Forms.TextBox textBox = (System.Windows.Forms.TextBox)sender;
+            string currentText = textBox.Text;
+            int selectionStart = textBox.SelectionStart;
+
+            if (char.IsControl(e.KeyChar))
+            {
+                e.Handled = false;
+                return;
+            }
+
+            if (e.KeyChar == '-' && selectionStart == 0 && !currentText.Contains("-"))
+            {
+                e.Handled = false;
+                return;
+            }
+
+            if (e.KeyChar == '.' || e.KeyChar == ',')
+            {
+                if (!currentText.Contains('.') && !currentText.Contains(','))
+                {
+                    e.KeyChar = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
+                    e.Handled = false;
+                }
+                else
+                {
+                    e.Handled = true;
+                }
+                return;
+            }
+
+            if (!char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            e.Handled = false;
+        }
+
+        private void TextBoxEpsilon_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void TextBoxFunction_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if ((e.KeyChar >= 'А' && e.KeyChar <= 'Я') ||
+                (e.KeyChar >= 'а' && e.KeyChar <= 'я') ||
+                e.KeyChar == 'ё' || e.KeyChar == 'Ё')
+            {
+                e.Handled = true;
+                return;
+            }
+
+            e.Handled = false;
         }
 
         private void ButtonStart_Click(object sender, EventArgs e)
         {
             try
             {
-                string function = textBoxF.Text.Trim();
-                if (string.IsNullOrEmpty(function))
-                    throw new ArgumentException("Введите функцию");
+                if (string.IsNullOrWhiteSpace(textBoxF.Text))
+                {
+                    MessageBox.Show("Введите функцию", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                if (!double.TryParse(textBoxA.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
-                    throw new ArgumentException("Некорректное значение A");
+                if (!double.TryParse(textBoxA.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double a))
+                {
+                    MessageBox.Show("Некорректное значение A", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                if (!double.TryParse(textBoxB.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
-                    throw new ArgumentException("Некорректное значение B");
+                if (!double.TryParse(textBoxB.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double b))
+                {
+                    MessageBox.Show("Некорректное значение B", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
                 if (!int.TryParse(textBoxE.Text, out int precision) || precision < 0)
-                    throw new ArgumentException("Точность должна быть целым неотрицательным числом");
+                {
+                    MessageBox.Show("Точность должна быть целым положительным числом",
+                                  "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
                 if (a >= b)
-                    throw new ArgumentException("A должно быть меньше B");
-
-                // Проверяем особые случаи
-                string lowerFunction = function.ToLower();
-
-                // Для ln(x) на интервале, не содержащем положительных чисел
-                if (lowerFunction.Contains("ln(x)") && b <= 0)
                 {
-                    textBoxX.Text = "корней нет";
-                    textBoxY.Text = "корней нет";
-                    MessageBox.Show("Функция ln(x) определена только для x > 0", "Информация",
-                                  MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("A должно быть меньше B", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
-                // Для exp(x) - экспонента никогда не равна 0
-                if (lowerFunction.Contains("exp(") && !lowerFunction.Contains("exp(x)-") &&
-                    !lowerFunction.Contains("exp(x)+") && !lowerFunction.Contains("-exp("))
-                {
-                    textBoxX.Text = "корней нет";
-                    textBoxY.Text = "корней нет";
-                    MessageBox.Show("Функция exp(x) всегда положительна и не имеет корней", "Информация",
-                                  MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                double epsilon = Math.Pow(10, -precision);
 
-                // Для квадратичных функций проверяем особые случаи
-                if (IsQuadraticFunction(function) && IsQuadraticFunction(function, out double A, out double B, out double C))
-                {
-                    double discriminant = B * B - 4 * A * C;
-                    if (discriminant < 0)
-                    {
-                        textBoxX.Text = "корней нет";
-                        textBoxY.Text = "корней нет";
-                        MessageBox.Show("Дискриминант отрицательный, действительных корней нет", "Информация",
-                                      MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        return;
-                    }
-                }
+                // Ищем корни методом дихотомии
+                List<(double x, double y)> roots = FindRootsDichotomy(textBoxF.Text, a, b, epsilon);
 
-                // Ищем все корни на интервале
-                var roots = FindAllRoots(function, a, b, precision);
-                foundRoots = roots.Select(r => r.x).ToList();
-
-                if (roots.Count == 0)
+                // Выводим результаты
+                if (roots.Count > 0)
                 {
-                    // Проверяем, является ли функция гиперболой
-                    if (IsHyperbola(function))
-                    {
-                        textBoxX.Text = "корней нет";
-                        textBoxY.Text = "корней нет";
-                        MessageBox.Show("Для гиперболы корней нет", "Информация",
-                                      MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                    else
-                    {
-                        textBoxX.Text = "корней нет";
-                        textBoxY.Text = "корней нет";
-                    }
-                }
-                else if (roots.Count == 1)
-                {
-                    var root = roots[0];
-                    textBoxX.Text = root.x.ToString($"F{precision}");
-                    textBoxY.Text = root.y.ToString($"F{precision}");
+                    string format = $"F{precision}";
+                    textBoxX.Text = string.Join(", ", roots.Select(r => r.x.ToString(format)));
+                    textBoxY.Text = string.Join(", ", roots.Select(r => r.y.ToString(format)));
                 }
                 else
                 {
-                    // Выводим несколько корней через запятую
-                    string xValues = string.Join(", ", roots.Select(r => r.x.ToString($"F{precision}")));
-                    string yValues = string.Join(", ", roots.Select(r => r.y.ToString($"F{precision}")));
+                    textBoxX.Text = "нет";
+                    textBoxY.Text = "нет";
 
-                    textBoxX.Text = xValues;
-                    textBoxY.Text = yValues;
+                    MessageBox.Show("На заданном интервале корней не найдено",
+                                  "Информация",
+                                  MessageBoxButtons.OK,
+                                  MessageBoxIcon.Information);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка",
-                              MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -868,172 +764,33 @@ namespace ProgramLab
         {
             try
             {
-                EnsureChartSeries();
-                ClearChartData();
+                if (string.IsNullOrWhiteSpace(textBoxF.Text))
+                {
+                    MessageBox.Show("Введите функцию", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                string function = textBoxF.Text.Trim();
-                if (string.IsNullOrEmpty(function))
-                    throw new ArgumentException("Введите функцию");
+                if (!double.TryParse(textBoxA.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double a))
+                {
+                    MessageBox.Show("Некорректное значение A", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                if (!double.TryParse(textBoxA.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double a))
-                    throw new ArgumentException("Некорректное значение A");
-
-                if (!double.TryParse(textBoxB.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double b))
-                    throw new ArgumentException("Некорректное значение B");
+                if (!double.TryParse(textBoxB.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double b))
+                {
+                    MessageBox.Show("Некорректное значение B", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
                 if (a >= b)
-                    throw new ArgumentException("A должно быть меньше B");
-
-                int precision = 6;
-                if (!int.TryParse(textBoxE.Text, out precision))
-                    precision = 6;
-
-                // Ищем все корни для отображения
-                var roots = FindAllRoots(function, a, b, precision);
-                foundRoots = roots.Select(r => r.x).ToList();
-
-                double range = b - a;
-                double xMin = a - range * 0.1;
-                double xMax = b + range * 0.1;
-
-                // Для ln(x) ограничиваем минимальное значение X
-                if (function.ToLower().Contains("ln("))
                 {
-                    xMin = Math.Max(xMin, 0.001); // Нельзя брать 0 или отрицательные значения
+                    MessageBox.Show("A должно быть меньше B", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
                 }
 
-                if (chart.ChartAreas.Count == 0)
-                {
-                    chart.ChartAreas.Add(new ChartArea("MainArea"));
-                }
-
-                ChartArea area = chart.ChartAreas[0];
-                area.AxisX.Minimum = xMin;
-                area.AxisX.Maximum = xMax;
-                area.AxisX.Interval = Math.Max(0.1, range / 10);
-                area.AxisX.Title = "X";
-                area.AxisY.Title = "F(X)";
-
-                area.AxisX.StripLines.Clear();
-
-                // Добавляем полосу для интервала [A, B] на оси X
-                StripLine intervalStrip = new StripLine();
-                intervalStrip.Interval = 0;
-                intervalStrip.IntervalOffset = a;
-                intervalStrip.StripWidth = b - a;
-                intervalStrip.BackColor = Color.FromArgb(30, Color.LightBlue);
-                intervalStrip.BackSecondaryColor = Color.FromArgb(30, Color.LightBlue);
-                intervalStrip.BackGradientStyle = GradientStyle.TopBottom;
-                area.AxisX.StripLines.Add(intervalStrip);
-
-                // Добавляем вертикальные линии для границ интервала
-                AddVerticalLine(area, a, Color.Red, "A");
-                AddVerticalLine(area, b, Color.Red, "B");
-
-                // Проверяем тип функции
-                bool isHyperbola = IsHyperbola(function);
-                bool isTrigonometric = IsTrigonometricFunction(function);
-                bool isLogarithmic = IsLogarithmicFunction(function);
-                bool isExponential = IsExponentialFunction(function);
-                bool isQuadratic = IsQuadraticFunction(function);
-                bool isContinuous = IsContinuousFunction(function);
-
-                // Определяем количество точек для построения графика
-                int pointsCount;
-                if (isTrigonometric)
-                {
-                    pointsCount = Math.Min(5000, (int)((xMax - xMin) * 100));
-                    pointsCount = Math.Max(pointsCount, 1000);
-                }
-                else if (isExponential || isLogarithmic)
-                {
-                    pointsCount = Math.Min(3000, (int)((xMax - xMin) * 75));
-                    pointsCount = Math.Max(pointsCount, 1000);
-                }
-                else
-                {
-                    pointsCount = Math.Min(2000, (int)((xMax - xMin) * 50));
-                    pointsCount = Math.Max(pointsCount, 1000);
-                }
-
-                // Построение графика функции
-                bool hasValidPoints = false;
-                bool previousWasValid = false;
-
-                for (int i = 0; i <= pointsCount; i++)
-                {
-                    double x = xMin + (xMax - xMin) * i / pointsCount;
-                    double y = EvaluateFunction(function, x);
-
-                    if (!double.IsInfinity(y) && !double.IsNaN(y))
-                    {
-                        chart.Series["Функция"].Points.AddXY(x, y);
-                        hasValidPoints = true;
-                        previousWasValid = true;
-                    }
-                    else
-                    {
-                        // Для разрывных функций добавляем разрыв
-                        if (!isContinuous && previousWasValid)
-                        {
-                            chart.Series["Функция"].Points.AddXY(double.NaN, double.NaN);
-                            previousWasValid = false;
-                        }
-                    }
-                }
-
-                if (!hasValidPoints)
-                {
-                    MessageBox.Show("Не удалось построить график функции. Проверьте корректность ввода функции.\n" +
-                                  "Примеры корректных функций: sin(x), cos(x), tan(x), ctg(x), ln(x), exp(x), x^2, x^2+2x+1, x+1, 1/x",
-                                  "Предупреждение", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-
-                // Отметка всех найденных корней (только точки, без надписей)
-                foreach (var root in roots)
-                {
-                    try
-                    {
-                        double rootY = EvaluateFunction(function, root.x);
-                        if (!double.IsNaN(rootY) && !double.IsInfinity(rootY))
-                        {
-                            chart.Series["Корень"].Points.AddXY(root.x, rootY);
-                        }
-                    }
-                    catch { }
-                }
-
-                // Автомасштабирование по оси Y
-                area.AxisY.Minimum = double.NaN;
-                area.AxisY.Maximum = double.NaN;
-
-                // Для некоторых функций устанавливаем специальные пределы
-                if (isTrigonometric)
-                {
-                    // Для тригонометрических функций
-                    area.AxisY.Minimum = -2;
-                    area.AxisY.Maximum = 2;
-                }
-                else if (isExponential)
-                {
-                    // Для экспоненциальных функций
-                    area.AxisY.Minimum = 0;
-                    area.AxisY.Maximum = double.NaN; // Автоматически
-                }
-                else if (isLogarithmic)
-                {
-                    // Для логарифмических функций
-                    area.AxisY.Minimum = double.NaN; // Автоматически
-                    area.AxisY.Maximum = double.NaN; // Автоматически
-                }
-
-                // Добавляем сетку
-                area.AxisX.MajorGrid.Enabled = true;
-                area.AxisY.MajorGrid.Enabled = true;
-                area.AxisX.MajorGrid.LineColor = Color.LightGray;
-                area.AxisY.MajorGrid.LineColor = Color.LightGray;
-
-                chart.Invalidate();
+                PlotFunction(textBoxF.Text, a, b);
             }
             catch (Exception ex)
             {
@@ -1042,112 +799,26 @@ namespace ProgramLab
             }
         }
 
-        private void AddVerticalLine(ChartArea area, double xValue, Color color, string text)
+        private void ButtonClear_Click(object sender, EventArgs e)
         {
-            // Создаем вертикальную линию
-            StripLine verticalLine = new StripLine();
-            verticalLine.Interval = 0;
-            verticalLine.IntervalOffset = xValue;
-            verticalLine.StripWidth = 0.01 * (area.AxisX.Maximum - area.AxisX.Minimum);
-            verticalLine.BackColor = color;
-            verticalLine.BorderColor = color;
-            verticalLine.BorderWidth = 2;
-            area.AxisX.StripLines.Add(verticalLine);
+            textBoxF.Clear();
+            textBoxA.Clear();
+            textBoxB.Clear();
+            textBoxE.Clear();
+            textBoxX.Clear();
+            textBoxY.Clear();
 
-            // Добавляем подпись A или B
-            var annotation = new TextAnnotation
-            {
-                Text = text,
-                X = xValue,
-                Y = area.AxisY.Minimum,
-                ForeColor = color,
-                Font = new Font("Arial", 10, FontStyle.Bold),
-                Visible = true,
-                Alignment = ContentAlignment.TopCenter
-            };
-            chart.Annotations.Add(annotation);
-        }
-
-        private void EnsureChartSeries()
-        {
-            chart.Annotations.Clear();
-
-            if (chart.Series.IndexOf("Функция") == -1)
-            {
-                Series functionSeries = new Series("Функция")
-                {
-                    ChartType = SeriesChartType.Line,
-                    Color = Color.Blue,
-                    BorderWidth = 2
-                };
-                chart.Series.Add(functionSeries);
-            }
-
-            if (chart.Series.IndexOf("Корень") == -1)
-            {
-                Series rootSeries = new Series("Корень")
-                {
-                    ChartType = SeriesChartType.Point,
-                    Color = Color.DarkGreen,
-                    MarkerSize = 8,
-                    MarkerStyle = MarkerStyle.Circle
-                };
-                chart.Series.Add(rootSeries);
-            }
-        }
-
-        private void ClearChartData()
-        {
-            // Очищаем точки всех серий
-            foreach (Series series in chart.Series)
+            foreach (Series series in chartFunc.Series)
             {
                 series.Points.Clear();
             }
 
-            // Очищаем все аннотации
-            chart.Annotations.Clear();
+            chartFunc.ChartAreas[0].AxisX.Minimum = -10;
+            chartFunc.ChartAreas[0].AxisX.Maximum = 10;
+            chartFunc.ChartAreas[0].AxisY.Minimum = -MAX_Y_VALUE;
+            chartFunc.ChartAreas[0].AxisY.Maximum = MAX_Y_VALUE;
 
-            // Очищаем StripLines
-            if (chart.ChartAreas.Count > 0)
-            {
-                chart.ChartAreas[0].AxisX.StripLines.Clear();
-            }
-
-            // Сбрасываем масштаб графика
-            if (chart.ChartAreas.Count > 0)
-            {
-                chart.ChartAreas[0].AxisX.Minimum = double.NaN;
-                chart.ChartAreas[0].AxisX.Maximum = double.NaN;
-                chart.ChartAreas[0].AxisY.Minimum = double.NaN;
-                chart.ChartAreas[0].AxisY.Maximum = double.NaN;
-            }
-        }
-
-        private void buttonBack_Click(object sender, EventArgs e)
-        {
-            Main main = new Main();
-            main.Show();
-        }
-
-        private void textBoxA_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-
-        private void textBoxF_TextChanged(object sender, EventArgs e)
-        {
-
-        }
-    }
-
-    class ProgramLab
-    {
-        [STAThread]
-        static void Dichotomy()
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Dichotomy());
+            chartFunc.Invalidate();
         }
     }
 }

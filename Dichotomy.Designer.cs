@@ -45,11 +45,11 @@
             this.textBoxE = new System.Windows.Forms.TextBox();
             this.textBoxX = new System.Windows.Forms.TextBox();
             this.textBoxY = new System.Windows.Forms.TextBox();
-            this.chart = new System.Windows.Forms.DataVisualization.Charting.Chart();
+            this.chartFunc = new System.Windows.Forms.DataVisualization.Charting.Chart();
             this.buttonClear = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.buttonBack = new System.Windows.Forms.Button();
-            ((System.ComponentModel.ISupportInitialize)(this.chart)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chartFunc)).BeginInit();
             this.SuspendLayout();
             // 
             // labelF
@@ -132,7 +132,6 @@
             this.textBoxF.Name = "textBoxF";
             this.textBoxF.Size = new System.Drawing.Size(100, 20);
             this.textBoxF.TabIndex = 8;
-            this.textBoxF.TextChanged += new System.EventHandler(this.textBoxF_TextChanged);
             // 
             // textBoxA
             // 
@@ -140,7 +139,6 @@
             this.textBoxA.Name = "textBoxA";
             this.textBoxA.Size = new System.Drawing.Size(100, 20);
             this.textBoxA.TabIndex = 9;
-            this.textBoxA.TextChanged += new System.EventHandler(this.textBoxA_TextChanged);
             // 
             // textBoxB
             // 
@@ -170,21 +168,21 @@
             this.textBoxY.Size = new System.Drawing.Size(158, 20);
             this.textBoxY.TabIndex = 13;
             // 
-            // chart
+            // chartFunc
             // 
             chartArea1.Name = "ChartArea1";
-            this.chart.ChartAreas.Add(chartArea1);
+            this.chartFunc.ChartAreas.Add(chartArea1);
             legend1.Name = "Legend1";
-            this.chart.Legends.Add(legend1);
-            this.chart.Location = new System.Drawing.Point(281, 20);
-            this.chart.Name = "chart";
+            this.chartFunc.Legends.Add(legend1);
+            this.chartFunc.Location = new System.Drawing.Point(281, 20);
+            this.chartFunc.Name = "chartFunc";
             series1.ChartArea = "ChartArea1";
             series1.Legend = "Legend1";
             series1.Name = "Series1";
-            this.chart.Series.Add(series1);
-            this.chart.Size = new System.Drawing.Size(520, 366);
-            this.chart.TabIndex = 14;
-            this.chart.Text = "chart1";
+            this.chartFunc.Series.Add(series1);
+            this.chartFunc.Size = new System.Drawing.Size(520, 366);
+            this.chartFunc.TabIndex = 14;
+            this.chartFunc.Text = "chart1";
             // 
             // buttonClear
             // 
@@ -221,7 +219,7 @@
             this.Controls.Add(this.buttonBack);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.buttonClear);
-            this.Controls.Add(this.chart);
+            this.Controls.Add(this.chartFunc);
             this.Controls.Add(this.textBoxY);
             this.Controls.Add(this.textBoxX);
             this.Controls.Add(this.textBoxE);
@@ -238,7 +236,7 @@
             this.Controls.Add(this.labelF);
             this.Name = "Dichotomy";
             this.Text = "Form1";
-            ((System.ComponentModel.ISupportInitialize)(this.chart)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chartFunc)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -260,7 +258,7 @@
         private System.Windows.Forms.TextBox textBoxE;
         private System.Windows.Forms.TextBox textBoxX;
         private System.Windows.Forms.TextBox textBoxY;
-        private System.Windows.Forms.DataVisualization.Charting.Chart chart;
+        private System.Windows.Forms.DataVisualization.Charting.Chart chartFunc;
         private System.Windows.Forms.Button buttonClear;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Button buttonBack;
