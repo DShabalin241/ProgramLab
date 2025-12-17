@@ -38,24 +38,25 @@
             this.label6 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label7 = new System.Windows.Forms.Label();
-            this.TextBoxA = new System.Windows.Forms.TextBox();
-            this.TextBoxB = new System.Windows.Forms.TextBox();
-            this.TextBoxX = new System.Windows.Forms.TextBox();
-            this.TextBoxH = new System.Windows.Forms.TextBox();
+            this.textBoxA = new System.Windows.Forms.TextBox();
+            this.textBoxB = new System.Windows.Forms.TextBox();
+            this.textBoxX = new System.Windows.Forms.TextBox();
+            this.textBoxH = new System.Windows.Forms.TextBox();
             this.label8 = new System.Windows.Forms.Label();
             this.label9 = new System.Windows.Forms.Label();
             this.label10 = new System.Windows.Forms.Label();
-            this.TextBoxXMin = new System.Windows.Forms.TextBox();
-            this.TextBoxYMin = new System.Windows.Forms.TextBox();
-            this.Chart = new System.Windows.Forms.DataVisualization.Charting.Chart();
-            this.ButtonStart = new System.Windows.Forms.Button();
-            this.ButtonClear = new System.Windows.Forms.Button();
+            this.textBoxXMin = new System.Windows.Forms.TextBox();
+            this.textBoxYMin = new System.Windows.Forms.TextBox();
+            this.chartFunc = new System.Windows.Forms.DataVisualization.Charting.Chart();
+            this.buttonStart = new System.Windows.Forms.Button();
+            this.buttonClear = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
-            this.TextBoxE = new System.Windows.Forms.TextBox();
-            this.ButtonStop = new System.Windows.Forms.Button();
-            this.TextBoxF = new System.Windows.Forms.TextBox();
-            ((System.ComponentModel.ISupportInitialize)(this.Chart)).BeginInit();
+            this.textBoxE = new System.Windows.Forms.TextBox();
+            this.buttonStop = new System.Windows.Forms.Button();
+            this.textBoxF = new System.Windows.Forms.TextBox();
+            this.buttonBack = new System.Windows.Forms.Button();
+            ((System.ComponentModel.ISupportInitialize)(this.chartFunc)).BeginInit();
             this.SuspendLayout();
             // 
             // labelF
@@ -121,33 +122,33 @@
             this.label7.TabIndex = 8;
             this.label7.Text = "Введите шаг исследования";
             // 
-            // TextBoxA
+            // textBoxA
             // 
-            this.TextBoxA.Location = new System.Drawing.Point(39, 32);
-            this.TextBoxA.Name = "TextBoxA";
-            this.TextBoxA.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxA.TabIndex = 10;
+            this.textBoxA.Location = new System.Drawing.Point(39, 32);
+            this.textBoxA.Name = "textBoxA";
+            this.textBoxA.Size = new System.Drawing.Size(100, 20);
+            this.textBoxA.TabIndex = 10;
             // 
-            // TextBoxB
+            // textBoxB
             // 
-            this.TextBoxB.Location = new System.Drawing.Point(39, 58);
-            this.TextBoxB.Name = "TextBoxB";
-            this.TextBoxB.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxB.TabIndex = 11;
+            this.textBoxB.Location = new System.Drawing.Point(39, 58);
+            this.textBoxB.Name = "textBoxB";
+            this.textBoxB.Size = new System.Drawing.Size(100, 20);
+            this.textBoxB.TabIndex = 11;
             // 
-            // TextBoxX
+            // textBoxX
             // 
-            this.TextBoxX.Location = new System.Drawing.Point(39, 159);
-            this.TextBoxX.Name = "TextBoxX";
-            this.TextBoxX.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxX.TabIndex = 13;
+            this.textBoxX.Location = new System.Drawing.Point(39, 159);
+            this.textBoxX.Name = "textBoxX";
+            this.textBoxX.Size = new System.Drawing.Size(100, 20);
+            this.textBoxX.TabIndex = 13;
             // 
-            // TextBoxH
+            // textBoxH
             // 
-            this.TextBoxH.Location = new System.Drawing.Point(39, 216);
-            this.TextBoxH.Name = "TextBoxH";
-            this.TextBoxH.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxH.TabIndex = 14;
+            this.textBoxH.Location = new System.Drawing.Point(39, 216);
+            this.textBoxH.Name = "textBoxH";
+            this.textBoxH.Size = new System.Drawing.Size(100, 20);
+            this.textBoxH.TabIndex = 14;
             // 
             // label8
             // 
@@ -176,53 +177,53 @@
             this.label10.TabIndex = 17;
             this.label10.Text = "Y=";
             // 
-            // TextBoxXMin
+            // textBoxXMin
             // 
-            this.TextBoxXMin.Location = new System.Drawing.Point(29, 289);
-            this.TextBoxXMin.Name = "TextBoxXMin";
-            this.TextBoxXMin.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxXMin.TabIndex = 18;
+            this.textBoxXMin.Location = new System.Drawing.Point(29, 289);
+            this.textBoxXMin.Name = "textBoxXMin";
+            this.textBoxXMin.Size = new System.Drawing.Size(100, 20);
+            this.textBoxXMin.TabIndex = 18;
             // 
-            // TextBoxYMin
+            // textBoxYMin
             // 
-            this.TextBoxYMin.Location = new System.Drawing.Point(29, 322);
-            this.TextBoxYMin.Name = "TextBoxYMin";
-            this.TextBoxYMin.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxYMin.TabIndex = 19;
+            this.textBoxYMin.Location = new System.Drawing.Point(29, 322);
+            this.textBoxYMin.Name = "textBoxYMin";
+            this.textBoxYMin.Size = new System.Drawing.Size(100, 20);
+            this.textBoxYMin.TabIndex = 19;
             // 
-            // Chart
+            // chartFunc
             // 
             chartArea1.Name = "ChartArea1";
-            this.Chart.ChartAreas.Add(chartArea1);
+            this.chartFunc.ChartAreas.Add(chartArea1);
             legend1.Name = "Legend1";
-            this.Chart.Legends.Add(legend1);
-            this.Chart.Location = new System.Drawing.Point(294, 12);
-            this.Chart.Name = "Chart";
+            this.chartFunc.Legends.Add(legend1);
+            this.chartFunc.Location = new System.Drawing.Point(294, 12);
+            this.chartFunc.Name = "chartFunc";
             series1.ChartArea = "ChartArea1";
             series1.Legend = "Legend1";
             series1.Name = "Series1";
-            this.Chart.Series.Add(series1);
-            this.Chart.Size = new System.Drawing.Size(494, 377);
-            this.Chart.TabIndex = 20;
-            this.Chart.Text = "chart1";
+            this.chartFunc.Series.Add(series1);
+            this.chartFunc.Size = new System.Drawing.Size(494, 377);
+            this.chartFunc.TabIndex = 20;
+            this.chartFunc.Text = "chart1";
             // 
-            // ButtonStart
+            // buttonStart
             // 
-            this.ButtonStart.Location = new System.Drawing.Point(7, 373);
-            this.ButtonStart.Name = "ButtonStart";
-            this.ButtonStart.Size = new System.Drawing.Size(87, 53);
-            this.ButtonStart.TabIndex = 21;
-            this.ButtonStart.Text = "Расчитать";
-            this.ButtonStart.UseVisualStyleBackColor = true;
+            this.buttonStart.Location = new System.Drawing.Point(7, 373);
+            this.buttonStart.Name = "buttonStart";
+            this.buttonStart.Size = new System.Drawing.Size(87, 53);
+            this.buttonStart.TabIndex = 21;
+            this.buttonStart.Text = "Расчитать";
+            this.buttonStart.UseVisualStyleBackColor = true;
             // 
-            // ButtonClear
+            // buttonClear
             // 
-            this.ButtonClear.Location = new System.Drawing.Point(100, 373);
-            this.ButtonClear.Name = "ButtonClear";
-            this.ButtonClear.Size = new System.Drawing.Size(87, 53);
-            this.ButtonClear.TabIndex = 22;
-            this.ButtonClear.Text = "Очистить";
-            this.ButtonClear.UseVisualStyleBackColor = true;
+            this.buttonClear.Location = new System.Drawing.Point(100, 373);
+            this.buttonClear.Name = "buttonClear";
+            this.buttonClear.Size = new System.Drawing.Size(87, 53);
+            this.buttonClear.TabIndex = 22;
+            this.buttonClear.Text = "Очистить";
+            this.buttonClear.UseVisualStyleBackColor = true;
             // 
             // label1
             // 
@@ -242,49 +243,60 @@
             this.label4.TabIndex = 3;
             this.label4.Text = "E=";
             // 
-            // TextBoxE
+            // textBoxE
             // 
-            this.TextBoxE.Location = new System.Drawing.Point(39, 101);
-            this.TextBoxE.Name = "TextBoxE";
-            this.TextBoxE.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxE.TabIndex = 12;
+            this.textBoxE.Location = new System.Drawing.Point(39, 101);
+            this.textBoxE.Name = "textBoxE";
+            this.textBoxE.Size = new System.Drawing.Size(100, 20);
+            this.textBoxE.TabIndex = 12;
             // 
-            // ButtonStop
+            // buttonStop
             // 
-            this.ButtonStop.Location = new System.Drawing.Point(193, 373);
-            this.ButtonStop.Name = "ButtonStop";
-            this.ButtonStop.Size = new System.Drawing.Size(87, 53);
-            this.ButtonStop.TabIndex = 23;
-            this.ButtonStop.Text = "Стоп";
-            this.ButtonStop.UseVisualStyleBackColor = true;
+            this.buttonStop.Location = new System.Drawing.Point(193, 373);
+            this.buttonStop.Name = "buttonStop";
+            this.buttonStop.Size = new System.Drawing.Size(87, 53);
+            this.buttonStop.TabIndex = 23;
+            this.buttonStop.Text = "Стоп";
+            this.buttonStop.UseVisualStyleBackColor = true;
             // 
-            // TextBoxF
+            // textBoxF
             // 
-            this.TextBoxF.Location = new System.Drawing.Point(39, 2);
-            this.TextBoxF.Name = "TextBoxF";
-            this.TextBoxF.Size = new System.Drawing.Size(100, 20);
-            this.TextBoxF.TabIndex = 24;
+            this.textBoxF.Location = new System.Drawing.Point(39, 2);
+            this.textBoxF.Name = "textBoxF";
+            this.textBoxF.Size = new System.Drawing.Size(100, 20);
+            this.textBoxF.TabIndex = 24;
+            // 
+            // buttonBack
+            // 
+            this.buttonBack.Location = new System.Drawing.Point(713, 403);
+            this.buttonBack.Name = "buttonBack";
+            this.buttonBack.Size = new System.Drawing.Size(75, 23);
+            this.buttonBack.TabIndex = 25;
+            this.buttonBack.Text = "Назад";
+            this.buttonBack.UseVisualStyleBackColor = true;
+            this.buttonBack.Click += new System.EventHandler(this.buttonBack_Click_1);
             // 
             // MPKS
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Controls.Add(this.TextBoxF);
-            this.Controls.Add(this.ButtonStop);
-            this.Controls.Add(this.ButtonClear);
-            this.Controls.Add(this.ButtonStart);
-            this.Controls.Add(this.Chart);
-            this.Controls.Add(this.TextBoxYMin);
-            this.Controls.Add(this.TextBoxXMin);
+            this.Controls.Add(this.buttonBack);
+            this.Controls.Add(this.textBoxF);
+            this.Controls.Add(this.buttonStop);
+            this.Controls.Add(this.buttonClear);
+            this.Controls.Add(this.buttonStart);
+            this.Controls.Add(this.chartFunc);
+            this.Controls.Add(this.textBoxYMin);
+            this.Controls.Add(this.textBoxXMin);
             this.Controls.Add(this.label10);
             this.Controls.Add(this.label9);
             this.Controls.Add(this.label8);
-            this.Controls.Add(this.TextBoxH);
-            this.Controls.Add(this.TextBoxX);
-            this.Controls.Add(this.TextBoxE);
-            this.Controls.Add(this.TextBoxB);
-            this.Controls.Add(this.TextBoxA);
+            this.Controls.Add(this.textBoxH);
+            this.Controls.Add(this.textBoxX);
+            this.Controls.Add(this.textBoxE);
+            this.Controls.Add(this.textBoxB);
+            this.Controls.Add(this.textBoxA);
             this.Controls.Add(this.label7);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
@@ -296,7 +308,7 @@
             this.Controls.Add(this.labelF);
             this.Name = "MPKS";
             this.Text = "Form1";
-            ((System.ComponentModel.ISupportInitialize)(this.Chart)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chartFunc)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -311,22 +323,23 @@
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label7;
-        private System.Windows.Forms.TextBox TextBoxA;
-        private System.Windows.Forms.TextBox TextBoxB;
-        private System.Windows.Forms.TextBox TextBoxX;
-        private System.Windows.Forms.TextBox TextBoxH;
+        private System.Windows.Forms.TextBox textBoxA;
+        private System.Windows.Forms.TextBox textBoxB;
+        private System.Windows.Forms.TextBox textBoxX;
+        private System.Windows.Forms.TextBox textBoxH;
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.Label label9;
         private System.Windows.Forms.Label label10;
-        private System.Windows.Forms.TextBox TextBoxXMin;
-        private System.Windows.Forms.TextBox TextBoxYMin;
-        private System.Windows.Forms.DataVisualization.Charting.Chart Chart;
-        private System.Windows.Forms.Button ButtonStart;
-        private System.Windows.Forms.Button ButtonClear;
+        private System.Windows.Forms.TextBox textBoxXMin;
+        private System.Windows.Forms.TextBox textBoxYMin;
+        private System.Windows.Forms.DataVisualization.Charting.Chart chartFunc;
+        private System.Windows.Forms.Button buttonStart;
+        private System.Windows.Forms.Button buttonClear;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label4;
-        private System.Windows.Forms.TextBox TextBoxE;
-        private System.Windows.Forms.Button ButtonStop;
-        private System.Windows.Forms.TextBox TextBoxF;
+        private System.Windows.Forms.TextBox textBoxE;
+        private System.Windows.Forms.Button buttonStop;
+        private System.Windows.Forms.TextBox textBoxF;
+        private System.Windows.Forms.Button buttonBack;
     }
 }

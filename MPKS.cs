@@ -1,483 +1,373 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
-using System.Threading;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows.Forms;
-using NCalc;
+using System.Windows.Forms.DataVisualization.Charting;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace ProgramLab
 {
     public partial class MPKS : Form
     {
-        // Приватные поля для хранения данных
-        private string functionExpression;
-        private double intervalA;
-        private double intervalB;
-        private int precision;
-        private double initialX;
-        private double stepH;
-        private double minX;
-        private double minY;
+        private double PHI = (1 + Math.Sqrt(5)) / 2;
+        private const double MAX_Y_VALUE = 10;
+        private const double ZERO_TOLERANCE = 1e-10;
+        private const double INFINITY_THRESHOLD = 1e10; // Порог для определения бесконечности
 
-        // Для управления выполнением
-        private CancellationTokenSource cancellationTokenSource;
-        private bool isRunning = false;
-
-        // Для хранения точек спуска
-        private List<PointF> descentPoints = new List<PointF>();
+        // Для управления асинхронными операциями
+        private CancellationTokenSource _cancellationTokenSource;
+        private bool _isSearchRunning = false;
 
         public MPKS()
         {
             InitializeComponent();
+            SetupChart();
             SetupEventHandlers();
+        }
+
+        // Список функций без экстремумов
+        private readonly List<string> NO_EXTREMUM_FUNCTIONS = new List<string>
+        {
+            "tan", "ctg", "exp", "log", "ln", "1/x", "x^-1", "e^x"
+        };
+
+        private void SetupChart()
+        {
+            chartFunc.Series.Clear();
+
+            // Основной график функции
+            Series functionSeries = new Series("Функция")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Blue,
+                BorderWidth = 2
+            };
+            chartFunc.Series.Add(functionSeries);
+
+            // Границы интервала (вертикальные линии)
+            Series intervalSeries = new Series("Интервал")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Red,
+                BorderWidth = 2,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartFunc.Series.Add(intervalSeries);
+
+            // Точка минимума (результат)
+            Series minSeries = new Series("Минимум")
+            {
+                ChartType = SeriesChartType.Point,
+                Color = Color.Red,
+                MarkerStyle = MarkerStyle.Circle,
+                MarkerSize = 10
+            };
+            chartFunc.Series.Add(minSeries);
+
+            // Точка спуска (процесс поиска)
+            Series descentSeries = new Series("Спуск")
+            {
+                ChartType = SeriesChartType.Point,
+                Color = Color.Orange,
+                MarkerStyle = MarkerStyle.Circle,
+                MarkerSize = 8
+            };
+            chartFunc.Series.Add(descentSeries);
+
+            // Асимптоты (вертикальные линии в точках разрыва)
+            Series asymptoteSeries = new Series("Асимптоты")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.DarkGray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.DashDot
+            };
+            chartFunc.Series.Add(asymptoteSeries);
+
+            // Ось X
+            Series xAxisSeries = new Series("Ось X (y=0)")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.DarkGray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartFunc.Series.Add(xAxisSeries);
+
+            // Ось Y
+            Series yAxisSeries = new Series("Ось Y (x=0)")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.DarkGray,
+                BorderWidth = 1,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartFunc.Series.Add(yAxisSeries);
+
+            // Настройка осей
+            chartFunc.ChartAreas[0].AxisX.Title = "X";
+            chartFunc.ChartAreas[0].AxisY.Title = "Y";
+            chartFunc.ChartAreas[0].AxisX.Minimum = -10;
+            chartFunc.ChartAreas[0].AxisX.Maximum = 10;
+            chartFunc.ChartAreas[0].AxisY.Minimum = -MAX_Y_VALUE;
+            chartFunc.ChartAreas[0].AxisY.Maximum = MAX_Y_VALUE;
         }
 
         private void SetupEventHandlers()
         {
-            // Запрет ввода кириллицы в поле функции
-            TextBoxF.KeyPress += (s, e) =>
-            {
-                // Разрешаем только латинские буквы, цифры и математические символы
-                if ((e.KeyChar >= 'А' && e.KeyChar <= 'я') || e.KeyChar == 'ё' || e.KeyChar == 'Ё')
-                {
-                    e.Handled = true;
-                    MessageBox.Show("Ввод кириллицы запрещен. Используйте только латинские символы для функции.",
-                        "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            };
-
-            // Валидация числовых полей
-            SetupNumericTextBox(TextBoxA);
-            SetupNumericTextBox(TextBoxB);
-            SetupNumericTextBox(TextBoxX);
-            SetupPositiveNumericTextBox(TextBoxH);
-            SetupPositiveIntegerTextBox(TextBoxE);
+            // Проверка ввода для числовых полей
+            textBoxA.KeyPress += TextBoxNumber_KeyPress;
+            textBoxB.KeyPress += TextBoxNumber_KeyPress;
+            textBoxX.KeyPress += TextBoxNumber_KeyPress;
+            textBoxH.KeyPress += TextBoxPositiveNumber_KeyPress;
+            textBoxE.KeyPress += TextBoxEpsilon_KeyPress;
+            textBoxF.KeyPress += TextBoxFunction_KeyPress;
 
             // Обработчики кнопок
-            ButtonStart.Click += async (s, e) => await StartDescentAsync();
-            ButtonStop.Click += StopDescent;
-            ButtonClear.Click += ClearAll;
-
-            // Инициализация графика
-            InitializeChart();
+            buttonStart.Click += ButtonStartCoordinateDescent_Click;
+            buttonClear.Click += ButtonClear_Click;
+            buttonStop.Click += ButtonStop_Click;
         }
 
-        private void SetupNumericTextBox(TextBox textBox)
+        #region Обработчики ввода
+
+        private void TextBoxNumber_KeyPress(object sender, KeyPressEventArgs e)
         {
-            textBox.KeyPress += (s, e) =>
+            System.Windows.Forms.TextBox textBox = (System.Windows.Forms.TextBox)sender;
+            string currentText = textBox.Text;
+            int selectionStart = textBox.SelectionStart;
+
+            // Разрешить управляющие символы (Backspace, Delete и т.д.)
+            if (char.IsControl(e.KeyChar))
             {
-                // Разрешаем цифры, минус, запятую, точку и Backspace
-                bool isDigit = char.IsDigit(e.KeyChar);
-                bool isControl = char.IsControl(e.KeyChar);
-                bool isDecimalSeparator = e.KeyChar == ',' || e.KeyChar == '.';
-                bool isMinus = e.KeyChar == '-';
-
-                // Разрешаем минус только в начале
-                if (isMinus && textBox.SelectionStart != 0)
-                {
-                    e.Handled = true;
-                    return;
-                }
-
-                // Преобразуем точку в запятую
-                if (e.KeyChar == '.')
-                {
-                    e.KeyChar = ',';
-                }
-
-                // Если символ не цифра, не управляющий и не разделитель - запрещаем
-                if (!(isDigit || isControl || isDecimalSeparator || isMinus))
-                {
-                    e.Handled = true;
-                }
-
-                // Проверяем, чтобы разделитель был только один
-                if (isDecimalSeparator && textBox.Text.Contains(','))
-                {
-                    e.Handled = true;
-                }
-            };
-        }
-
-        private void SetupPositiveNumericTextBox(TextBox textBox)
-        {
-            textBox.KeyPress += (s, e) =>
-            {
-                // Разрешаем цифры, запятую, точку и Backspace
-                bool isDigit = char.IsDigit(e.KeyChar);
-                bool isControl = char.IsControl(e.KeyChar);
-                bool isDecimalSeparator = e.KeyChar == ',' || e.KeyChar == '.';
-
-                // Преобразуем точку в запятую
-                if (e.KeyChar == '.')
-                {
-                    e.KeyChar = ',';
-                }
-
-                if (!(isDigit || isControl || isDecimalSeparator))
-                {
-                    e.Handled = true;
-                }
-
-                // Проверяем, чтобы разделитель был только один
-                if (isDecimalSeparator && textBox.Text.Contains(','))
-                {
-                    e.Handled = true;
-                }
-            };
-        }
-
-        private void SetupPositiveIntegerTextBox(TextBox textBox)
-        {
-            textBox.KeyPress += (s, e) =>
-            {
-                // Разрешаем только цифры и Backspace
-                if (!char.IsDigit(e.KeyChar) && !char.IsControl(e.KeyChar))
-                {
-                    e.Handled = true;
-                }
-            };
-        }
-
-        private void InitializeChart()
-        {
-            Chart.Series.Clear();
-
-            // Основной график функции
-            var functionSeries = Chart.Series.Add("Function");
-            functionSeries.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            functionSeries.Color = Color.Blue;
-            functionSeries.BorderWidth = 2;
-
-            // Точки спуска
-            var descentSeries = Chart.Series.Add("Descent");
-            descentSeries.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Point;
-            descentSeries.Color = Color.Red;
-            descentSeries.MarkerSize = 8;
-            descentSeries.MarkerStyle = System.Windows.Forms.DataVisualization.Charting.MarkerStyle.Circle;
-
-            // Вертикальные линии интервала
-            var leftBoundarySeries = Chart.Series.Add("LeftBoundary");
-            leftBoundarySeries.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            leftBoundarySeries.Color = Color.Green;
-            leftBoundarySeries.BorderWidth = 2;
-
-            var rightBoundarySeries = Chart.Series.Add("RightBoundary");
-            rightBoundarySeries.ChartType = System.Windows.Forms.DataVisualization.Charting.SeriesChartType.Line;
-            rightBoundarySeries.Color = Color.Green;
-            rightBoundarySeries.BorderWidth = 2;
-
-            // Настройка осей
-            Chart.ChartAreas[0].AxisX.Crossing = 0;
-            Chart.ChartAreas[0].AxisY.Crossing = 0;
-            Chart.ChartAreas[0].AxisX.MajorGrid.LineColor = Color.LightGray;
-            Chart.ChartAreas[0].AxisY.MajorGrid.LineColor = Color.LightGray;
-        }
-
-        private async Task StartDescentAsync()
-        {
-            if (isRunning)
-            {
-                MessageBox.Show("Вычисление уже выполняется", "Информация",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                e.Handled = false;
                 return;
             }
 
-            if (!ValidateInput())
+            // Разрешить знак минуса только в начале
+            if (e.KeyChar == '-' && selectionStart == 0 && !currentText.Contains("-"))
             {
+                e.Handled = false;
                 return;
             }
 
-            // Инициализация отмены
-            cancellationTokenSource = new CancellationTokenSource();
-            isRunning = true;
-            ButtonStart.Enabled = false;
-            ButtonStop.Enabled = true;
-
-            try
+            // Разрешить разделитель десятичных дробей (точка или запятая)
+            if (e.KeyChar == '.' || e.KeyChar == ',')
             {
-                // Получаем данные из полей
-                ParseInput();
-
-                // Очищаем предыдущие точки спуска
-                descentPoints.Clear();
-
-                // Строим график функции
-                PlotFunction();
-
-                // Запускаем метод покоординатного спуска
-                await Task.Run(() => PerformCoordinateDescentAsync(cancellationTokenSource.Token));
-            }
-            catch (OperationCanceledException)
-            {
-                MessageBox.Show("Вычисление прервано пользователем", "Информация",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при выполнении: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                isRunning = false;
-                ButtonStart.Enabled = true;
-                ButtonStop.Enabled = false;
-
-                // Выводим результат
-                TextBoxXMin.Text = minX.ToString($"F{precision}");
-                TextBoxYMin.Text = minY.ToString($"F{precision}");
-            }
-        }
-
-        private bool ValidateInput()
-        {
-            // Проверка заполнения всех полей
-            if (string.IsNullOrWhiteSpace(TextBoxF.Text))
-            {
-                MessageBox.Show("Функция не задана. Введите математическое выражение.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(TextBoxA.Text) || string.IsNullOrWhiteSpace(TextBoxB.Text))
-            {
-                MessageBox.Show("Интервал не задан полностью.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(TextBoxE.Text))
-            {
-                MessageBox.Show("Точность не задана.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(TextBoxX.Text))
-            {
-                MessageBox.Show("Начальная точка не задана.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(TextBoxH.Text))
-            {
-                MessageBox.Show("Шаг не задан.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            // Проверка интервала
-            double a, b;
-            if (!double.TryParse(TextBoxA.Text.Replace('.', ','), out a) ||
-                !double.TryParse(TextBoxB.Text.Replace('.', ','), out b))
-            {
-                MessageBox.Show("Некорректный формат чисел в интервале.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (a >= b)
-            {
-                MessageBox.Show("Левая граница интервала (A) должна быть меньше правой (B).",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            // Проверка начальной точки
-            double x;
-            if (!double.TryParse(TextBoxX.Text.Replace('.', ','), out x))
-            {
-                MessageBox.Show("Некорректный формат начальной точки.",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            if (x < a || x > b)
-            {
-                MessageBox.Show("Начальная точка должна находиться внутри интервала [A, B].",
-                    "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-
-            return true;
-        }
-
-        private void ParseInput()
-        {
-            // Преобразуем функцию: оставляем ^ как есть - NCalc понимает его как возведение в степень
-            functionExpression = TextBoxF.Text
-                .Replace("sin", "Sin")  // NCalc требует заглавные буквы
-                .Replace("cos", "Cos")
-                .Replace("tan", "Tan")
-                .Replace("tg", "Tan")
-                .Replace("ctg", "Cot")
-                .Replace("log", "Log")
-                .Replace("ln", "Log")
-                .Replace("exp", "Exp")
-                .Replace("sqrt", "Sqrt");
-
-            // Парсим числа
-            intervalA = double.Parse(TextBoxA.Text.Replace('.', ','));
-            intervalB = double.Parse(TextBoxB.Text.Replace('.', ','));
-            precision = int.Parse(TextBoxE.Text);
-            initialX = double.Parse(TextBoxX.Text.Replace('.', ','));
-            stepH = double.Parse(TextBoxH.Text.Replace('.', ','));
-        }
-
-        private void PlotFunction()
-        {
-            // Очищаем график
-            Chart.Series["Function"].Points.Clear();
-            Chart.Series["Descent"].Points.Clear();
-            Chart.Series["LeftBoundary"].Points.Clear();
-            Chart.Series["RightBoundary"].Points.Clear();
-
-            // Для хранения точек графика
-            List<PointF> functionPoints = new List<PointF>();
-
-            // Рисуем вертикальные линии границ
-            double yMin = double.MaxValue;
-            double yMax = double.MinValue;
-
-            // Собираем значения функции для определения диапазона Y
-            int pointsCount = 500;
-            double step = (intervalB - intervalA) / pointsCount;
-
-            for (int i = 0; i <= pointsCount; i++)
-            {
-                double x = intervalA + i * step;
-                try
+                if (!currentText.Contains('.') && !currentText.Contains(','))
                 {
-                    double y = EvaluateFunction(x);
-
-                    if (!double.IsInfinity(y) && !double.IsNaN(y))
-                    {
-                        // Добавляем точку в список
-                        functionPoints.Add(new PointF((float)x, (float)y));
-
-                        // Обновляем диапазон Y
-                        yMin = Math.Min(yMin, y);
-                        yMax = Math.Max(yMax, y);
-                    }
-                    else
-                    {
-                        // Для разрывов добавляем точку с NaN
-                        functionPoints.Add(new PointF((float)x, float.NaN));
-                    }
-                }
-                catch
-                {
-                    // Ошибка вычисления - добавляем точку с NaN
-                    functionPoints.Add(new PointF((float)x, float.NaN));
-                }
-            }
-
-            // Если нет корректных значений, устанавливаем диапазон по умолчанию
-            if (yMin == double.MaxValue || yMax == double.MinValue)
-            {
-                yMin = -10;
-                yMax = 10;
-            }
-
-            // Добавляем запас по вертикали
-            double yRange = yMax - yMin;
-            yMin -= yRange * 0.1;
-            yMax += yRange * 0.1;
-
-            // Рисуем границы интервала
-            Chart.Series["LeftBoundary"].Points.AddXY(intervalA, yMin);
-            Chart.Series["LeftBoundary"].Points.AddXY(intervalA, yMax);
-
-            Chart.Series["RightBoundary"].Points.AddXY(intervalB, yMin);
-            Chart.Series["RightBoundary"].Points.AddXY(intervalB, yMax);
-
-            // Рисуем саму функцию - ВАЖНО: точки должны быть отсортированы по X
-            // Сортируем точки по координате X
-            functionPoints.Sort((p1, p2) => p1.X.CompareTo(p2.X));
-
-            // Добавляем точки на график в правильном порядке
-            foreach (var point in functionPoints)
-            {
-                if (float.IsNaN(point.Y))
-                {
-                    // Для разрывов добавляем пустую точку
-                    Chart.Series["Function"].Points.AddXY(point.X, double.NaN);
+                    // Заменяем на разделитель текущей культуры
+                    e.KeyChar = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
+                    e.Handled = false;
                 }
                 else
                 {
-                    Chart.Series["Function"].Points.AddXY(point.X, point.Y);
+                    e.Handled = true;
                 }
+                return;
             }
 
-            // Настраиваем видимый диапазон
-            Chart.ChartAreas[0].AxisX.Minimum = intervalA - Math.Abs(intervalB - intervalA) * 0.1;
-            Chart.ChartAreas[0].AxisX.Maximum = intervalB + Math.Abs(intervalB - intervalA) * 0.1;
-            Chart.ChartAreas[0].AxisY.Minimum = yMin;
-            Chart.ChartAreas[0].AxisY.Maximum = yMax;
+            // Разрешить только цифры
+            if (!char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+                return;
+            }
 
-            // Обновляем график
-            Chart.Refresh();
+            e.Handled = false;
         }
 
-        private double EvaluateFunction(double x)
+        private void TextBoxPositiveNumber_KeyPress(object sender, KeyPressEventArgs e)
         {
-            try
+            System.Windows.Forms.TextBox textBox = (System.Windows.Forms.TextBox)sender;
+            string currentText = textBox.Text;
+
+            // Разрешить управляющие символы
+            if (char.IsControl(e.KeyChar))
             {
-                // Создаем выражение NCalc
-                Expression expression = new Expression(functionExpression);
+                e.Handled = false;
+                return;
+            }
 
-                // Устанавливаем параметры
-                expression.Parameters["x"] = x;
-                expression.Parameters["X"] = x;
+            // НЕ разрешать знак минуса для положительных чисел
+            if (e.KeyChar == '-')
+            {
+                e.Handled = true;
+                return;
+            }
 
-                // Добавляем математические функции
-                expression.EvaluateParameter += (name, args) =>
+            // Разрешить разделитель десятичных дробей
+            if (e.KeyChar == '.' || e.KeyChar == ',')
+            {
+                if (!currentText.Contains('.') && !currentText.Contains(','))
                 {
-                    if (name == "pi" || name == "PI") args.Result = Math.PI;
-                    if (name == "e" || name == "E") args.Result = Math.E;
-                };
-
-                // Добавляем обработку функции pow для совместимости
-                expression.EvaluateFunction += (name, args) =>
-                {
-                    if (name.ToLower() == "pow" && args.Parameters.Length == 2)
-                    {
-                        try
-                        {
-                            double baseValue = Convert.ToDouble(args.Parameters[0].Evaluate());
-                            double exponent = Convert.ToDouble(args.Parameters[1].Evaluate());
-                            args.Result = Math.Pow(baseValue, exponent);
-                        }
-                        catch
-                        {
-                            args.Result = double.NaN;
-                        }
-                    }
-                };
-
-                // Вычисляем результат
-                object result = expression.Evaluate();
-
-                if (result is double)
-                {
-                    return (double)result;
-                }
-                else if (result is int)
-                {
-                    return (int)result;
-                }
-                else if (result is decimal)
-                {
-                    return (double)(decimal)result;
+                    e.KeyChar = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
+                    e.Handled = false;
                 }
                 else
                 {
-                    throw new InvalidOperationException("Неверный тип результата функции");
+                    e.Handled = true;
                 }
+                return;
+            }
+
+            // Разрешить только цифры
+            if (!char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            e.Handled = false;
+        }
+
+        private void TextBoxEpsilon_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // Разрешить только цифры и управляющие символы
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void TextBoxFunction_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // Запретить ввод кириллицы
+            if ((e.KeyChar >= 'А' && e.KeyChar <= 'Я') ||
+                (e.KeyChar >= 'а' && e.KeyChar <= 'я') ||
+                e.KeyChar == 'ё' || e.KeyChar == 'Ё')
+            {
+                e.Handled = true;
+                return;
+            }
+
+            e.Handled = false;
+        }
+
+        #endregion
+
+        #region Вычисление функции
+
+        private bool IsFunctionWithoutExtremums(string function)
+        {
+            string funcLower = function.ToLower().Replace(" ", "");
+
+            foreach (string pattern in NO_EXTREMUM_FUNCTIONS)
+            {
+                if (funcLower.Contains(pattern))
+                {
+                    return true;
+                }
+            }
+
+            if (Regex.IsMatch(funcLower, @"1\s*/\s*x") || Regex.IsMatch(funcLower, @"1\s*/\s*\(x"))
+            {
+                return true;
+            }
+
+            if (funcLower.Contains("e^") && funcLower.Contains("x"))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private double EvaluateFunction(string function, double x)
+        {
+            try
+            {
+                string expression = function.ToLower();
+
+                // Обработка котангенса
+                expression = Regex.Replace(expression, @"ctg\s*\(\s*(.*?)\s*\)", match =>
+                {
+                    string arg = match.Groups[1].Value;
+                    return $"(1/tan({arg}))";
+                });
+
+                // Замена констант
+                expression = expression
+                    .Replace("pi", Math.PI.ToString(CultureInfo.InvariantCulture))
+                    .Replace("e", Math.E.ToString(CultureInfo.InvariantCulture));
+
+                // Замена переменной x
+                expression = ReplaceXInExpression(expression, x);
+
+                // Обработка тригонометрических функций
+                expression = Regex.Replace(expression, @"sin\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    return Math.Sin(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"cos\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    return Math.Cos(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"tan\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    double cos = Math.Cos(arg);
+                    if (Math.Abs(cos) < 1e-15)
+                        throw new DivideByZeroException("Тангенс не определен");
+                    return Math.Tan(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                // Обработка экспоненты
+                expression = Regex.Replace(expression, @"exp\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    return Math.Exp(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                // Обработка квадратного корня
+                expression = Regex.Replace(expression, @"sqrt\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    if (arg < 0)
+                        throw new ArgumentException("Корень из отрицательного числа");
+                    return Math.Sqrt(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                // Обработка логарифмов
+                expression = Regex.Replace(expression, @"log\((.*?),(.*?)\)", match =>
+                {
+                    double num = EvaluateSimpleExpression(match.Groups[1].Value);
+                    double baseVal = EvaluateSimpleExpression(match.Groups[2].Value);
+                    if (num <= 0 || baseVal <= 0 || baseVal == 1)
+                        throw new ArgumentException("Логарифм не определен");
+                    return Math.Log(num, baseVal).ToString(CultureInfo.InvariantCulture);
+                });
+
+                expression = Regex.Replace(expression, @"ln\((.*?)\)", match =>
+                {
+                    double arg = EvaluateSimpleExpression(match.Groups[1].Value);
+                    if (arg <= 0)
+                        throw new ArgumentException("Натуральный логарифм не определен");
+                    return Math.Log(arg).ToString(CultureInfo.InvariantCulture);
+                });
+
+                // Обработка степеней
+                expression = ProcessPowers(expression);
+
+                double result = EvaluateSimpleExpression(expression);
+
+                // Проверка на бесконечность
+                if (double.IsInfinity(result) || Math.Abs(result) > INFINITY_THRESHOLD)
+                {
+                    throw new OverflowException("Значение функции стремится к бесконечности");
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -485,190 +375,741 @@ namespace ProgramLab
             }
         }
 
-        private async Task PerformCoordinateDescentAsync(CancellationToken cancellationToken)
+        private string ReplaceXInExpression(string expression, double x)
         {
-            double currentX = initialX;
-            double epsilon = Math.Pow(10, -precision);
-            double previousMin = double.MaxValue;
-
-            // Инициализируем минимум
-            minX = currentX;
-            minY = EvaluateFunction(currentX);
-
-            // Основной цикл метода покоординатного спуска
-            while (true)
+            // Обработка выражений вида x^2, x^3 и т.д.
+            expression = Regex.Replace(expression, @"x\^(\d+(?:\.\d+)?)", match =>
             {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
+                double exponent = double.Parse(match.Groups[1].Value);
+                return Math.Pow(x, exponent).ToString(CultureInfo.InvariantCulture);
+            });
 
-                // Проверяем границы интервала
-                if (currentX < intervalA || currentX > intervalB)
+            // Замена одиночного x
+            expression = expression.Replace("x", x.ToString(CultureInfo.InvariantCulture));
+
+            return expression;
+        }
+
+        private string ProcessPowers(string expression)
+        {
+            var matches = Regex.Matches(expression, @"(\d+(?:\.\d+)?|\([^)]+\))\^(\d+(?:\.\d+)?|\([^)]+\))");
+
+            foreach (Match match in matches)
+            {
+                if (match.Success)
                 {
-                    // Если вышли за границы, возвращаемся к ближайшей границе
-                    currentX = Math.Max(intervalA, Math.Min(currentX, intervalB));
-                    AddDescentPoint(currentX);
-                    await Task.Delay(500);
+                    string baseStr = match.Groups[1].Value;
+                    string expStr = match.Groups[2].Value;
+
+                    if (baseStr.StartsWith("(") && baseStr.EndsWith(")"))
+                        baseStr = baseStr.Substring(1, baseStr.Length - 2);
+                    if (expStr.StartsWith("(") && expStr.EndsWith(")"))
+                        expStr = expStr.Substring(1, expStr.Length - 2);
+
+                    double baseVal = EvaluateSimpleExpression(baseStr);
+                    double exponent = EvaluateSimpleExpression(expStr);
+
+                    expression = expression.Replace(match.Value,
+                        Math.Pow(baseVal, exponent).ToString(CultureInfo.InvariantCulture));
+                }
+            }
+
+            return expression;
+        }
+
+        private double EvaluateSimpleExpression(string expression)
+        {
+            DataTable table = new DataTable();
+            expression = expression.Replace(",", ".");
+            table.Columns.Add("expression", typeof(string), expression);
+            DataRow row = table.NewRow();
+            table.Rows.Add(row);
+            return double.Parse((string)row["expression"]);
+        }
+
+        #endregion
+
+        #region Метод покоординатного спуска
+
+        /// <summary>
+        /// Метод покоординатного спуска для функции одной переменной
+        /// Алгоритм:
+        /// 1. Начинаем с начальной точки x0
+        /// 2. Пока не достигнута точность или не вышли за границы интервала:
+        ///    - Пробуем шаг влево: x1 = x - H
+        ///    - Если f(x1) < f(x), двигаемся влево
+        ///    - Иначе пробуем шаг вправо: x1 = x + H
+        ///    - Если f(x1) < f(x), двигаемся вправо
+        ///    - Иначе уменьшаем шаг H = H/2
+        /// 3. Цикл продолжается, пока находится направление уменьшения функции
+        /// </summary>
+        private async Task CoordinateDescentAsync(string function, double a, double b,
+            double startX, double step, double epsilon, CancellationToken cancellationToken)
+        {
+            double currentX = startX;
+            double currentH = step;
+            double previousValue = EvaluateFunction(function, currentX);
+            int iteration = 0;
+            const int maxIterations = 10000;
+
+            // Очищаем серию точек спуска
+            chartFunc.Series["Спуск"].Points.Clear();
+
+            // Добавляем начальную точку
+            chartFunc.Series["Спуск"].Points.AddXY(currentX, previousValue);
+            chartFunc.Invalidate();
+
+            // Основной цикл метода
+            while (iteration < maxIterations && !cancellationToken.IsCancellationRequested)
+            {
+                iteration++;
+
+                // Проверяем, не вышли ли за границы интервала
+                if (currentX < a || currentX > b)
+                {
+                    AddStatusMessage($"Достигнута граница интервала [A, B] на итерации {iteration}");
                     break;
                 }
 
-                // Вычисляем текущее значение функции
-                double currentF = EvaluateFunction(currentX);
+                double leftX = currentX - currentH;
+                double rightX = currentX + currentH;
+                double leftValue = double.MaxValue;
+                double rightValue = double.MaxValue;
+                bool leftValid = false;
+                bool rightValid = false;
 
-                // Первый этап: определение направления движения
-                double x1 = currentX - stepH;
-                double x2 = currentX + stepH;
-
-                double f1 = EvaluateFunction(x1);
-                double f2 = EvaluateFunction(x2);
-
-                double newX;
-                if (f1 < currentF && x1 >= intervalA)
+                // Пробуем шаг влево (если не выходим за границу)
+                if (leftX >= a)
                 {
-                    newX = x1; // Двигаемся влево
-                }
-                else if (f2 < currentF && x2 <= intervalB)
-                {
-                    newX = x2; // Двигаемся вправо
-                }
-                else
-                {
-                    // Если оба направления не улучшают значение, уменьшаем шаг
-                    if (stepH > epsilon * 10)
+                    try
                     {
-                        stepH /= 2;
-                        continue;
+                        leftValue = EvaluateFunction(function, leftX);
+                        leftValid = true;
                     }
-                    else
+                    catch
                     {
-                        // Достигли минимума
-                        break;
+                        leftValid = false;
                     }
                 }
 
-                // Второй этап: проверка условия остановки
-                double newF = EvaluateFunction(newX);
-
-                // Обновляем точку минимума
-                if (newF < currentF)
+                // Пробуем шаг вправо (если не выходим за границу)
+                if (rightX <= b)
                 {
-                    minX = newX;
-                    minY = newF;
+                    try
+                    {
+                        rightValue = EvaluateFunction(function, rightX);
+                        rightValid = true;
+                    }
+                    catch
+                    {
+                        rightValid = false;
+                    }
+                }
+
+                double newX = currentX;
+                double newValue = previousValue;
+                bool foundBetter = false;
+
+                // Выбираем направление с наименьшим значением функции
+                if (leftValid && leftValue < previousValue)
+                {
+                    newX = leftX;
+                    newValue = leftValue;
+                    foundBetter = true;
+                }
+
+                if (rightValid && rightValue < previousValue && rightValue < leftValue)
+                {
+                    newX = rightX;
+                    newValue = rightValue;
+                    foundBetter = true;
+                }
+
+                // Если нашли лучшее значение, двигаемся
+                if (foundBetter)
+                {
+                    // Обновляем точку
                     currentX = newX;
 
+                    // Проверяем условие остановки по точности
+                    if (Math.Abs(newValue - previousValue) < epsilon)
+                    {
+                        AddStatusMessage($"Достигнута заданная точность на итерации {iteration}");
+                        break;
+                    }
+
+                    previousValue = newValue;
+
                     // Добавляем точку на график
-                    AddDescentPoint(currentX);
+                    chartFunc.Series["Спуск"].Points.AddXY(currentX, newValue);
+                    chartFunc.Invalidate();
 
                     // Задержка для визуализации
                     await Task.Delay(500, cancellationToken);
                 }
                 else
                 {
-                    // Если улучшение незначительное, останавливаемся
-                    if (Math.Abs(newF - currentF) < epsilon)
+                    // Если не нашли лучшего направления, уменьшаем шаг
+                    currentH /= 2.0;
+
+                    // Проверяем условие остановки по шагу
+                    if (currentH < epsilon)
                     {
+                        AddStatusMessage($"Шаг стал меньше заданной точности на итерации {iteration}");
                         break;
                     }
-                }
 
-                // Проверяем сходимость
-                if (Math.Abs(previousMin - newF) < epsilon)
-                {
-                    break;
-                }
-
-                previousMin = newF;
-
-                // Проверяем, достигли ли границы интервала
-                if (Math.Abs(currentX - intervalA) < epsilon ||
-                    Math.Abs(currentX - intervalB) < epsilon)
-                {
-                    break;
+                    AddStatusMessage($"Уменьшаем шаг до {currentH:F6} на итерации {iteration}");
                 }
             }
-        }
 
-        private void AddDescentPoint(double x)
-        {
-            // Вычисляем значение функции в точке
-            double y = EvaluateFunction(x);
-
-            // Добавляем в список точек спуска
-            descentPoints.Add(new PointF((float)x, (float)y));
-
-            // Обновляем график в UI потоке
-            if (Chart.InvokeRequired)
+            // Сохраняем результат
+            if (!cancellationToken.IsCancellationRequested)
             {
-                Chart.Invoke(new Action(() =>
-                {
-                    Chart.Series["Descent"].Points.Clear();
-                    foreach (var point in descentPoints)
-                    {
-                        Chart.Series["Descent"].Points.AddXY(point.X, point.Y);
-                    }
-
-                    // Помечаем последнюю точку
-                    if (descentPoints.Count > 0)
-                    {
-                        var lastPoint = descentPoints.Last();
-                        Chart.Series["Descent"].Points.Last().Color = Color.Green;
-                        Chart.Series["Descent"].Points.Last().MarkerSize = 10;
-                    }
-                }));
+                UpdateResult(currentX, previousValue);
             }
         }
 
-        private void StopDescent(object sender, EventArgs e)
+        private void AddStatusMessage(string message)
         {
-            if (cancellationTokenSource != null && isRunning)
+            if (InvokeRequired)
             {
-                cancellationTokenSource.Cancel();
-                isRunning = false;
-                ButtonStart.Enabled = true;
-                ButtonStop.Enabled = false;
+                Invoke(new Action(() => AddStatusMessage(message)));
+                return;
+            }
+
+            // Можно добавить статусное сообщение, если нужно
+            // Например: statusLabel.Text = message;
+        }
+
+        private void UpdateResult(double x, double y)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateResult(x, y)));
+                return;
+            }
+
+            // Записываем результат
+            int precision = int.TryParse(textBoxE.Text, out int p) ? p : 6;
+            textBoxXMin.Text = x.ToString($"F{precision}");
+            textBoxYMin.Text = y.ToString($"F{precision}");
+
+            // Отображаем найденный минимум на графике
+            chartFunc.Series["Минимум"].Points.Clear();
+            chartFunc.Series["Минимум"].Points.AddXY(x, y);
+            chartFunc.Invalidate();
+        }
+
+        #endregion
+
+        #region Поиск и отрисовка асимптот
+
+        /// <summary>
+        /// Находит точки разрыва функции (асимптоты) на заданном интервале
+        /// </summary>
+        private List<double> FindAsymptotes(string function, double a, double b, int samplePoints = 1000)
+        {
+            List<double> asymptotes = new List<double>();
+
+            if (string.IsNullOrWhiteSpace(function))
+                return asymptotes;
+
+            double step = (b - a) / samplePoints;
+
+            // Функции с известными асимптотами
+            string funcLower = function.ToLower();
+
+            // Для тангенса: асимптоты в точках pi/2 + pi*k
+            if (funcLower.Contains("tan") || funcLower.Contains("ctg"))
+            {
+                // Находим точки вида pi/2 + pi*k в интервале [a, b]
+                double pi = Math.PI;
+                double startK = Math.Ceiling((a - pi / 2) / pi);
+                double endK = Math.Floor((b - pi / 2) / pi);
+
+                for (double k = startK; k <= endK; k++)
+                {
+                    double asymptotePoint = pi / 2 + pi * k;
+                    if (asymptotePoint >= a && asymptotePoint <= b)
+                    {
+                        asymptotes.Add(asymptotePoint);
+                    }
+                }
+
+                // Для котангенса: асимптоты в точках pi*k
+                if (funcLower.Contains("ctg"))
+                {
+                    startK = Math.Ceiling(a / pi);
+                    endK = Math.Floor(b / pi);
+
+                    for (double k = startK; k <= endK; k++)
+                    {
+                        double asymptotePoint = pi * k;
+                        if (asymptotePoint >= a && asymptotePoint <= b)
+                        {
+                            asymptotes.Add(asymptotePoint);
+                        }
+                    }
+                }
+            }
+
+            // Для 1/x или дробей вида 1/(x-c)
+            if (funcLower.Contains("1/x") || funcLower.Contains("1/") && funcLower.Contains("x"))
+            {
+                // Ищем точки, где знаменатель равен 0
+                // Это упрощенная проверка - в реальности нужно парсить выражение
+                if (a <= 0 && b >= 0)
+                {
+                    asymptotes.Add(0);
+                }
+            }
+
+            // Для дробей общего вида - находим разрывы численным методом
+            for (int i = 1; i < samplePoints; i++)
+            {
+                double x = a + i * step;
+                double prevX = a + (i - 1) * step;
+                double nextX = a + (i + 1) * step;
+
+                try
+                {
+                    double y1 = EvaluateFunction(function, prevX);
+                    double y2 = EvaluateFunction(function, nextX);
+
+                    // Если значения очень большие и разных знаков - возможная асимптота
+                    if ((Math.Abs(y1) > INFINITY_THRESHOLD / 10 || Math.Abs(y2) > INFINITY_THRESHOLD / 10) &&
+                        Math.Sign(y1) != Math.Sign(y2))
+                    {
+                        // Уточняем положение асимптоты методом деления отрезка пополам
+                        double left = prevX;
+                        double right = nextX;
+
+                        for (int j = 0; j < 20; j++) // 20 итераций для точности
+                        {
+                            double mid = (left + right) / 2;
+                            try
+                            {
+                                double yMid = EvaluateFunction(function, mid);
+                                if (Math.Abs(yMid) > INFINITY_THRESHOLD / 10)
+                                {
+                                    right = mid;
+                                }
+                                else
+                                {
+                                    left = mid;
+                                }
+                            }
+                            catch
+                            {
+                                right = mid;
+                            }
+                        }
+
+                        double asymptotePoint = (left + right) / 2;
+
+                        // Проверяем, не добавили ли уже эту точку
+                        if (!asymptotes.Any(p => Math.Abs(p - asymptotePoint) < step / 10))
+                        {
+                            asymptotes.Add(asymptotePoint);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Пропускаем точки, где функция не определена
+                }
+            }
+
+            return asymptotes.Distinct().OrderBy(x => x).ToList();
+        }
+
+        /// <summary>
+        /// Рисует асимптоты на графике
+        /// </summary>
+        private void DrawAsymptotes(List<double> asymptotes, double yMin, double yMax)
+        {
+            chartFunc.Series["Асимптоты"].Points.Clear();
+
+            foreach (double asymptoteX in asymptotes)
+            {
+                // Добавляем вертикальную линию асимптоты
+                chartFunc.Series["Асимптоты"].Points.AddXY(asymptoteX, yMin);
+                chartFunc.Series["Асимптоты"].Points.AddXY(asymptoteX, yMax);
+                // Добавляем разрыв между линиями (для разделения асимптот)
+                chartFunc.Series["Асимптоты"].Points.AddXY(double.NaN, double.NaN);
             }
         }
 
-        private void ClearAll(object sender, EventArgs e)
+        #endregion
+
+        #region Обработчики кнопок
+
+        private async void ButtonStartCoordinateDescent_Click(object sender, EventArgs e)
         {
-            // Очищаем все поля ввода
-            TextBoxF.Clear();
-            TextBoxA.Clear();
-            TextBoxB.Clear();
-            TextBoxE.Clear();
-            TextBoxX.Clear();
-            TextBoxH.Clear();
-            TextBoxXMin.Clear();
-            TextBoxYMin.Clear();
+            try
+            {
+                // Проверка введенных данных
+                if (string.IsNullOrWhiteSpace(textBoxF.Text))
+                {
+                    MessageBox.Show("Введите функцию для анализа", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxA.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double a))
+                {
+                    MessageBox.Show("Некорректное значение A. Введите число", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxB.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double b))
+                {
+                    MessageBox.Show("Некорректное значение B. Введите число", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (a >= b)
+                {
+                    MessageBox.Show("Значение A должно быть меньше B", "Ошибка интервала",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxX.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double startX))
+                {
+                    MessageBox.Show("Некорректное значение начальной точки X. Введите число",
+                        "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxH.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double step))
+                {
+                    MessageBox.Show("Некорректное значение шага H. Введите положительное число",
+                        "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (step <= 0)
+                {
+                    MessageBox.Show("Шаг H должен быть положительным числом", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!int.TryParse(textBoxE.Text, out int precision) || precision < 0)
+                {
+                    MessageBox.Show("Точность должна быть целым положительным числом",
+                        "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Проверяем, что начальная точка в интервале
+                if (startX < a || startX > b)
+                {
+                    MessageBox.Show($"Начальная точка X должна быть в интервале [{a}, {b}]",
+                        "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Останавливаем предыдущий поиск, если он запущен
+                if (_isSearchRunning)
+                {
+                    _cancellationTokenSource?.Cancel();
+                }
+
+                // Строим график функции с асимптотами
+                PlotFunction(textBoxF.Text, a, b);
+
+                // Запускаем метод покоординатного спуска
+                _cancellationTokenSource = new CancellationTokenSource();
+                _isSearchRunning = true;
+                buttonStart.Enabled = false;
+                buttonStop.Enabled = true;
+
+                try
+                {
+                    double epsilon = Math.Pow(10, -precision);
+                    await CoordinateDescentAsync(textBoxF.Text, a, b, startX, step,
+                        epsilon, _cancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Поиск был отменен пользователем
+                    MessageBox.Show("Поиск минимума прерван пользователем", "Информация",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                finally
+                {
+                    _isSearchRunning = false;
+                    buttonStart.Enabled = true;
+                    buttonStop.Enabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при выполнении поиска: {ex.Message}",
+                    "Ошибка выполнения", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                _isSearchRunning = false;
+                buttonStart.Enabled = true;
+                buttonStop.Enabled = false;
+            }
+        }
+
+        private void ButtonStop_Click(object sender, EventArgs e)
+        {
+            if (_isSearchRunning && _cancellationTokenSource != null)
+            {
+                _cancellationTokenSource.Cancel();
+                buttonStop.Enabled = false;
+            }
+        }
+
+        private void ButtonChart_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(textBoxF.Text))
+                {
+                    MessageBox.Show("Введите функцию для построения графика", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxA.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double a))
+                {
+                    MessageBox.Show("Некорректное значение A. Введите число", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxB.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double b))
+                {
+                    MessageBox.Show("Некорректное значение B. Введите число", "Ошибка ввода",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (a >= b)
+                {
+                    MessageBox.Show("Значение A должно быть меньше B", "Ошибка интервала",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                PlotFunction(textBoxF.Text, a, b);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при построении графика: {ex.Message}",
+                    "Ошибка выполнения", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ButtonClear_Click(object sender, EventArgs e)
+        {
+            // Останавливаем поиск, если он запущен
+            if (_isSearchRunning)
+            {
+                _cancellationTokenSource?.Cancel();
+                _isSearchRunning = false;
+            }
+
+            // Очищаем текстовые поля
+            textBoxF.Clear();
+            textBoxA.Clear();
+            textBoxB.Clear();
+            textBoxX.Clear();
+            textBoxH.Clear();
+            textBoxE.Clear();
+            textBoxXMin.Clear();
+            textBoxYMin.Clear();
 
             // Очищаем график
-            Chart.Series.Clear();
-            InitializeChart();
-
-            // Сбрасываем состояние
-            if (cancellationTokenSource != null)
+            foreach (Series series in chartFunc.Series)
             {
-                cancellationTokenSource.Cancel();
-                cancellationTokenSource.Dispose();
-                cancellationTokenSource = null;
+                series.Points.Clear();
             }
 
-            isRunning = false;
-            ButtonStart.Enabled = true;
-            ButtonStop.Enabled = false;
-            descentPoints.Clear();
+            // Сбрасываем настройки осей
+            chartFunc.ChartAreas[0].AxisX.Minimum = -10;
+            chartFunc.ChartAreas[0].AxisX.Maximum = 10;
+            chartFunc.ChartAreas[0].AxisY.Minimum = -MAX_Y_VALUE;
+            chartFunc.ChartAreas[0].AxisY.Maximum = MAX_Y_VALUE;
+
+            chartFunc.Invalidate();
         }
 
-        protected override void OnFormClosing(FormClosingEventArgs e)
+        private void buttonBack_Click(object sender, EventArgs e)
         {
-            // Останавливаем выполнение при закрытии формы
-            if (cancellationTokenSource != null)
+            // Останавливаем поиск перед переходом
+            if (_isSearchRunning)
             {
-                cancellationTokenSource.Cancel();
-                cancellationTokenSource.Dispose();
+                _cancellationTokenSource?.Cancel();
             }
-            base.OnFormClosing(e);
+
+            Main main = new Main();
+            main.Show();
+            Close();
+        }
+
+        #endregion
+
+        #region Визуализация
+
+        private void PlotFunction(string function, double a, double b)
+        {
+            // Очищаем все серии
+            chartFunc.Series["Функция"].Points.Clear();
+            chartFunc.Series["Интервал"].Points.Clear();
+            chartFunc.Series["Минимум"].Points.Clear();
+            chartFunc.Series["Спуск"].Points.Clear();
+            chartFunc.Series["Асимптоты"].Points.Clear();
+            chartFunc.Series["Ось X (y=0)"].Points.Clear();
+            chartFunc.Series["Ось Y (x=0)"].Points.Clear();
+
+            // Настройка границ графика
+            double xMin = Math.Min(a, b) - Math.Abs(b - a) * 0.2;
+            double xMax = Math.Max(a, b) + Math.Abs(b - a) * 0.2;
+
+            chartFunc.ChartAreas[0].AxisX.Minimum = xMin;
+            chartFunc.ChartAreas[0].AxisX.Maximum = xMax;
+
+            // Построение функции
+            int pointsCount = 1000;
+            double step = (b - a) / pointsCount;
+            List<double> validYValues = new List<double>();
+
+            // Находим асимптоты
+            List<double> asymptotes = FindAsymptotes(function, a, b);
+
+            for (int i = 0; i <= pointsCount; i++)
+            {
+                double x = a + i * step;
+
+                // Проверяем, не находимся ли мы слишком близко к асимптоте
+                bool nearAsymptote = asymptotes.Any(asymptote => Math.Abs(x - asymptote) < step / 100);
+
+                if (nearAsymptote)
+                {
+                    // Пропускаем точки рядом с асимптотой
+                    chartFunc.Series["Функция"].Points.AddXY(x, double.NaN);
+                    continue;
+                }
+
+                try
+                {
+                    double y = EvaluateFunction(function, x);
+
+                    if (double.IsInfinity(y) || double.IsNaN(y))
+                    {
+                        // Разрыв функции - добавляем NaN для разрыва линии
+                        chartFunc.Series["Функция"].Points.AddXY(x, double.NaN);
+                    }
+                    else
+                    {
+                        chartFunc.Series["Функция"].Points.AddXY(x, y);
+                        validYValues.Add(y);
+                    }
+                }
+                catch (Exception ex) when (ex.Message.Contains("бесконечности") ||
+                                          ex.Message.Contains("не определен") ||
+                                          ex is DivideByZeroException)
+                {
+                    // Точка разрыва - добавляем NaN
+                    chartFunc.Series["Функция"].Points.AddXY(x, double.NaN);
+                }
+                catch
+                {
+                    // Другие ошибки - пропускаем точку
+                    chartFunc.Series["Функция"].Points.AddXY(x, double.NaN);
+                }
+            }
+
+            // Настройка масштаба по оси Y
+            double yMinChart, yMaxChart;
+            if (validYValues.Count > 0)
+            {
+                double yMin = validYValues.Min();
+                double yMax = validYValues.Max();
+                double yRange = yMax - yMin;
+
+                if (yRange < 1e-10)
+                {
+                    yMin -= 1;
+                    yMax += 1;
+                    yRange = 2;
+                }
+
+                yMinChart = yMin - yRange * 0.1;
+                yMaxChart = yMax + yRange * 0.1;
+
+                chartFunc.ChartAreas[0].AxisY.Minimum = yMinChart;
+                chartFunc.ChartAreas[0].AxisY.Maximum = yMaxChart;
+            }
+            else
+            {
+                yMinChart = chartFunc.ChartAreas[0].AxisY.Minimum;
+                yMaxChart = chartFunc.ChartAreas[0].AxisY.Maximum;
+            }
+
+            // Ограничиваем масштаб для функций с большими значениями
+            if (IsFunctionWithoutExtremums(function))
+            {
+                chartFunc.ChartAreas[0].AxisY.Minimum = Math.Max(chartFunc.ChartAreas[0].AxisY.Minimum, -MAX_Y_VALUE);
+                chartFunc.ChartAreas[0].AxisY.Maximum = Math.Min(chartFunc.ChartAreas[0].AxisY.Maximum, MAX_Y_VALUE);
+            }
+
+            // Отрисовка вертикальных линий интервала
+            double lineY1 = chartFunc.ChartAreas[0].AxisY.Minimum;
+            double lineY2 = chartFunc.ChartAreas[0].AxisY.Maximum;
+
+            chartFunc.Series["Интервал"].Points.AddXY(a, lineY1);
+            chartFunc.Series["Интервал"].Points.AddXY(a, lineY2);
+            chartFunc.Series["Интервал"].Points.AddXY(double.NaN, double.NaN); // Разрыв
+
+            chartFunc.Series["Интервал"].Points.AddXY(b, lineY1);
+            chartFunc.Series["Интервал"].Points.AddXY(b, lineY2);
+
+            // Отрисовка асимптот
+            DrawAsymptotes(asymptotes, lineY1, lineY2);
+
+            // Отрисовка осей координат
+            if (chartFunc.ChartAreas[0].AxisY.Minimum <= 0 &&
+                chartFunc.ChartAreas[0].AxisY.Maximum >= 0)
+            {
+                chartFunc.Series["Ось X (y=0)"].Points.AddXY(xMin, 0);
+                chartFunc.Series["Ось X (y=0)"].Points.AddXY(xMax, 0);
+            }
+
+            if (chartFunc.ChartAreas[0].AxisX.Minimum <= 0 &&
+                chartFunc.ChartAreas[0].AxisX.Maximum >= 0)
+            {
+                double yMinAxis = chartFunc.ChartAreas[0].AxisY.Minimum;
+                double yMaxAxis = chartFunc.ChartAreas[0].AxisY.Maximum;
+                chartFunc.Series["Ось Y (x=0)"].Points.AddXY(0, yMinAxis);
+                chartFunc.Series["Ось Y (x=0)"].Points.AddXY(0, yMaxAxis);
+            }
+
+            chartFunc.Invalidate();
+        }
+
+        #endregion
+
+        private void buttonBack_Click_1(object sender, EventArgs e)
+        {
+            Main main = new Main(); 
+            main.Show();
+            Close();
         }
     }
 }

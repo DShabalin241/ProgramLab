@@ -784,7 +784,7 @@ namespace ProgramLab
         {
             Main main = new Main(); 
             main.Show();
-            GoldenRatio Form; Close();
+            Close();
         }
     }
 }
