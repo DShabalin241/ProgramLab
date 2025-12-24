@@ -45,3 +45,4 @@ C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\System.Numerics.Vectors.xml
 C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\System.Runtime.CompilerServices.Unsafe.xml
 C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\System.Security.Cryptography.Xml.xml
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Newton.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.MNK.resources
