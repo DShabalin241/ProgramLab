@@ -44,6 +44,7 @@
             this.maxYValue = new System.Windows.Forms.NumericUpDown();
             this.quadraticRadio = new System.Windows.Forms.RadioButton();
             this.linearRadio = new System.Windows.Forms.RadioButton();
+            this.button1 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox)).BeginInit();
             this.groupBox1.SuspendLayout();
@@ -213,6 +214,7 @@
             // 
             // groupBox1
             // 
+            this.groupBox1.Controls.Add(this.button1);
             this.groupBox1.Controls.Add(this.label8);
             this.groupBox1.Controls.Add(this.label7);
             this.groupBox1.Controls.Add(this.label6);
@@ -364,6 +366,16 @@
             this.linearRadio.Text = "Линейная";
             this.linearRadio.UseVisualStyleBackColor = true;
             // 
+            // button1
+            // 
+            this.button1.Location = new System.Drawing.Point(666, 90);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(140, 30);
+            this.button1.TabIndex = 16;
+            this.button1.Text = "Назад";
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
             // MNK
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -435,5 +447,6 @@
         private System.Windows.Forms.NumericUpDown maxYValue;
         private System.Windows.Forms.RadioButton quadraticRadio;
         private System.Windows.Forms.RadioButton linearRadio;
+        private System.Windows.Forms.Button button1;
     }
 }

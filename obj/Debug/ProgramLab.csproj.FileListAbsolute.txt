@@ -46,3 +46,4 @@ C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\System.Runtime.CompilerServices
 C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\System.Security.Cryptography.Xml.xml
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Newton.resources
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.MNK.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.SLAU.resources
