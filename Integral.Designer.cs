@@ -28,17 +28,16 @@
         /// </summary>
         private void InitializeComponent()
         {
-            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea4 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
-            System.Windows.Forms.DataVisualization.Charting.Legend legend4 = new System.Windows.Forms.DataVisualization.Charting.Legend();
-            System.Windows.Forms.DataVisualization.Charting.Series series4 = new System.Windows.Forms.DataVisualization.Charting.Series();
-            this.textBoxF = new System.Windows.Forms.TextBox();
-            this.ButtonClear = new System.Windows.Forms.Button();
-            this.ButtonStart = new System.Windows.Forms.Button();
-            this.chart1 = new System.Windows.Forms.DataVisualization.Charting.Chart();
-            this.textBoxRes = new System.Windows.Forms.TextBox();
+            System.Windows.Forms.DataVisualization.Charting.ChartArea chartArea1 = new System.Windows.Forms.DataVisualization.Charting.ChartArea();
+            System.Windows.Forms.DataVisualization.Charting.Legend legend1 = new System.Windows.Forms.DataVisualization.Charting.Legend();
+            System.Windows.Forms.DataVisualization.Charting.Series series1 = new System.Windows.Forms.DataVisualization.Charting.Series();
+            this.textBoxFunction = new System.Windows.Forms.TextBox();
+            this.buttonClearIntegral = new System.Windows.Forms.Button();
+            this.buttonCalculateIntegral = new System.Windows.Forms.Button();
+            this.chartIntegration = new System.Windows.Forms.DataVisualization.Charting.Chart();
+            this.textBoxResult = new System.Windows.Forms.TextBox();
             this.label9 = new System.Windows.Forms.Label();
-            this.label8 = new System.Windows.Forms.Label();
-            this.textBoxE = new System.Windows.Forms.TextBox();
+            this.textBoxEpsilon = new System.Windows.Forms.TextBox();
             this.textBoxB = new System.Windows.Forms.TextBox();
             this.textBoxA = new System.Windows.Forms.TextBox();
             this.label2 = new System.Windows.Forms.Label();
@@ -47,84 +46,80 @@
             this.label3 = new System.Windows.Forms.Label();
             this.labelA = new System.Windows.Forms.Label();
             this.labelF = new System.Windows.Forms.Label();
-            this.comboBoxMethods = new System.Windows.Forms.ComboBox();
-            ((System.ComponentModel.ISupportInitialize)(this.chart1)).BeginInit();
+            this.label5 = new System.Windows.Forms.Label();
+            this.textBoxN = new System.Windows.Forms.TextBox();
+            this.checkBoxAutoN = new System.Windows.Forms.CheckBox();
+            this.buttonStopIntegral = new System.Windows.Forms.Button();
+            this.radioButtonRectangles = new System.Windows.Forms.RadioButton();
+            this.radioButtonTrapezoids = new System.Windows.Forms.RadioButton();
+            this.radioButtonSimpson = new System.Windows.Forms.RadioButton();
+            this.labelInfo = new System.Windows.Forms.Label();
+            ((System.ComponentModel.ISupportInitialize)(this.chartIntegration)).BeginInit();
             this.SuspendLayout();
             // 
-            // textBoxF
+            // textBoxFunction
             // 
-            this.textBoxF.Location = new System.Drawing.Point(44, 13);
-            this.textBoxF.Name = "textBoxF";
-            this.textBoxF.Size = new System.Drawing.Size(100, 20);
-            this.textBoxF.TabIndex = 48;
+            this.textBoxFunction.Location = new System.Drawing.Point(44, 13);
+            this.textBoxFunction.Name = "textBoxFunction";
+            this.textBoxFunction.Size = new System.Drawing.Size(100, 20);
+            this.textBoxFunction.TabIndex = 48;
             // 
-            // ButtonClear
+            // buttonClearIntegral
             // 
-            this.ButtonClear.Location = new System.Drawing.Point(105, 384);
-            this.ButtonClear.Name = "ButtonClear";
-            this.ButtonClear.Size = new System.Drawing.Size(87, 53);
-            this.ButtonClear.TabIndex = 46;
-            this.ButtonClear.Text = "Очистить";
-            this.ButtonClear.UseVisualStyleBackColor = true;
-            this.ButtonClear.Click += new System.EventHandler(this.buttonClear_Click);
+            this.buttonClearIntegral.Location = new System.Drawing.Point(105, 384);
+            this.buttonClearIntegral.Name = "buttonClearIntegral";
+            this.buttonClearIntegral.Size = new System.Drawing.Size(87, 53);
+            this.buttonClearIntegral.TabIndex = 46;
+            this.buttonClearIntegral.Text = "Очистить";
+            this.buttonClearIntegral.UseVisualStyleBackColor = true;
             // 
-            // ButtonStart
+            // buttonCalculateIntegral
             // 
-            this.ButtonStart.Location = new System.Drawing.Point(12, 384);
-            this.ButtonStart.Name = "ButtonStart";
-            this.ButtonStart.Size = new System.Drawing.Size(87, 53);
-            this.ButtonStart.TabIndex = 45;
-            this.ButtonStart.Text = "Расчитать";
-            this.ButtonStart.UseVisualStyleBackColor = true;
-            this.ButtonStart.Click += new System.EventHandler(this.buttonStart_Click);
+            this.buttonCalculateIntegral.Location = new System.Drawing.Point(12, 384);
+            this.buttonCalculateIntegral.Name = "buttonCalculateIntegral";
+            this.buttonCalculateIntegral.Size = new System.Drawing.Size(87, 53);
+            this.buttonCalculateIntegral.TabIndex = 45;
+            this.buttonCalculateIntegral.Text = "Расчитать";
+            this.buttonCalculateIntegral.UseVisualStyleBackColor = true;
             // 
-            // chart1
+            // chartIntegration
             // 
-            chartArea4.Name = "ChartArea1";
-            this.chart1.ChartAreas.Add(chartArea4);
-            legend4.Name = "Legend1";
-            this.chart1.Legends.Add(legend4);
-            this.chart1.Location = new System.Drawing.Point(299, 23);
-            this.chart1.Name = "chart1";
-            series4.ChartArea = "ChartArea1";
-            series4.Legend = "Legend1";
-            series4.Name = "Series1";
-            this.chart1.Series.Add(series4);
-            this.chart1.Size = new System.Drawing.Size(494, 377);
-            this.chart1.TabIndex = 44;
-            this.chart1.Text = "chart1";
+            chartArea1.Name = "ChartArea1";
+            this.chartIntegration.ChartAreas.Add(chartArea1);
+            legend1.Name = "Legend1";
+            this.chartIntegration.Legends.Add(legend1);
+            this.chartIntegration.Location = new System.Drawing.Point(307, 12);
+            this.chartIntegration.Name = "chartIntegration";
+            series1.ChartArea = "ChartArea1";
+            series1.Legend = "Legend1";
+            series1.Name = "Series1";
+            this.chartIntegration.Series.Add(series1);
+            this.chartIntegration.Size = new System.Drawing.Size(494, 377);
+            this.chartIntegration.TabIndex = 44;
+            this.chartIntegration.Text = "chart1";
             // 
-            // textBoxRes
+            // textBoxResult
             // 
-            this.textBoxRes.Location = new System.Drawing.Point(72, 300);
-            this.textBoxRes.Name = "textBoxRes";
-            this.textBoxRes.Size = new System.Drawing.Size(100, 20);
-            this.textBoxRes.TabIndex = 42;
+            this.textBoxResult.Location = new System.Drawing.Point(74, 325);
+            this.textBoxResult.Name = "textBoxResult";
+            this.textBoxResult.Size = new System.Drawing.Size(100, 20);
+            this.textBoxResult.TabIndex = 42;
             // 
             // label9
             // 
             this.label9.AutoSize = true;
-            this.label9.Location = new System.Drawing.Point(7, 303);
+            this.label9.Location = new System.Drawing.Point(9, 328);
             this.label9.Name = "label9";
             this.label9.Size = new System.Drawing.Size(59, 13);
             this.label9.TabIndex = 40;
             this.label9.Text = "Реультат=";
             // 
-            // label8
+            // textBoxEpsilon
             // 
-            this.label8.AutoSize = true;
-            this.label8.Location = new System.Drawing.Point(8, 275);
-            this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(104, 13);
-            this.label8.TabIndex = 39;
-            this.label8.Text = "Минимум функции:";
-            // 
-            // textBoxE
-            // 
-            this.textBoxE.Location = new System.Drawing.Point(44, 112);
-            this.textBoxE.Name = "textBoxE";
-            this.textBoxE.Size = new System.Drawing.Size(100, 20);
-            this.textBoxE.TabIndex = 36;
+            this.textBoxEpsilon.Location = new System.Drawing.Point(44, 112);
+            this.textBoxEpsilon.Name = "textBoxEpsilon";
+            this.textBoxEpsilon.Size = new System.Drawing.Size(100, 20);
+            this.textBoxEpsilon.TabIndex = 36;
             // 
             // textBoxB
             // 
@@ -193,28 +188,103 @@
             this.labelF.TabIndex = 25;
             this.labelF.Text = "F(x)=";
             // 
-            // comboBoxMethods
+            // label5
             // 
-            this.comboBoxMethods.FormattingEnabled = true;
-            this.comboBoxMethods.Location = new System.Drawing.Point(10, 138);
-            this.comboBoxMethods.Name = "comboBoxMethods";
-            this.comboBoxMethods.Size = new System.Drawing.Size(121, 21);
-            this.comboBoxMethods.TabIndex = 49;
+            this.label5.AutoSize = true;
+            this.label5.Location = new System.Drawing.Point(8, 257);
+            this.label5.Name = "label5";
+            this.label5.Size = new System.Drawing.Size(21, 13);
+            this.label5.TabIndex = 50;
+            this.label5.Text = "N=";
+            // 
+            // textBoxN
+            // 
+            this.textBoxN.Location = new System.Drawing.Point(31, 254);
+            this.textBoxN.Name = "textBoxN";
+            this.textBoxN.Size = new System.Drawing.Size(100, 20);
+            this.textBoxN.TabIndex = 51;
+            // 
+            // checkBoxAutoN
+            // 
+            this.checkBoxAutoN.AutoSize = true;
+            this.checkBoxAutoN.Location = new System.Drawing.Point(10, 284);
+            this.checkBoxAutoN.Name = "checkBoxAutoN";
+            this.checkBoxAutoN.Size = new System.Drawing.Size(121, 17);
+            this.checkBoxAutoN.TabIndex = 52;
+            this.checkBoxAutoN.Text = "Автоматическое N";
+            this.checkBoxAutoN.UseVisualStyleBackColor = true;
+            // 
+            // buttonStopIntegral
+            // 
+            this.buttonStopIntegral.Location = new System.Drawing.Point(198, 385);
+            this.buttonStopIntegral.Name = "buttonStopIntegral";
+            this.buttonStopIntegral.Size = new System.Drawing.Size(87, 53);
+            this.buttonStopIntegral.TabIndex = 53;
+            this.buttonStopIntegral.Text = "Стоп";
+            this.buttonStopIntegral.UseVisualStyleBackColor = true;
+            // 
+            // radioButtonRectangles
+            // 
+            this.radioButtonRectangles.AutoSize = true;
+            this.radioButtonRectangles.Location = new System.Drawing.Point(10, 144);
+            this.radioButtonRectangles.Name = "radioButtonRectangles";
+            this.radioButtonRectangles.Size = new System.Drawing.Size(150, 17);
+            this.radioButtonRectangles.TabIndex = 54;
+            this.radioButtonRectangles.TabStop = true;
+            this.radioButtonRectangles.Text = "Метод прямоугольников";
+            this.radioButtonRectangles.UseVisualStyleBackColor = true;
+            // 
+            // radioButtonTrapezoids
+            // 
+            this.radioButtonTrapezoids.AutoSize = true;
+            this.radioButtonTrapezoids.Location = new System.Drawing.Point(10, 167);
+            this.radioButtonTrapezoids.Name = "radioButtonTrapezoids";
+            this.radioButtonTrapezoids.Size = new System.Drawing.Size(109, 17);
+            this.radioButtonTrapezoids.TabIndex = 55;
+            this.radioButtonTrapezoids.TabStop = true;
+            this.radioButtonTrapezoids.Text = "Метод Трапеций";
+            this.radioButtonTrapezoids.UseVisualStyleBackColor = true;
+            // 
+            // radioButtonSimpson
+            // 
+            this.radioButtonSimpson.AutoSize = true;
+            this.radioButtonSimpson.Location = new System.Drawing.Point(10, 190);
+            this.radioButtonSimpson.Name = "radioButtonSimpson";
+            this.radioButtonSimpson.Size = new System.Drawing.Size(105, 17);
+            this.radioButtonSimpson.TabIndex = 56;
+            this.radioButtonSimpson.TabStop = true;
+            this.radioButtonSimpson.Text = "Метод Симсона";
+            this.radioButtonSimpson.UseVisualStyleBackColor = true;
+            // 
+            // labelInfo
+            // 
+            this.labelInfo.AutoSize = true;
+            this.labelInfo.Location = new System.Drawing.Point(392, 404);
+            this.labelInfo.Name = "labelInfo";
+            this.labelInfo.Size = new System.Drawing.Size(21, 13);
+            this.labelInfo.TabIndex = 57;
+            this.labelInfo.Text = "N=";
             // 
             // Integral
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Controls.Add(this.comboBoxMethods);
-            this.Controls.Add(this.textBoxF);
-            this.Controls.Add(this.ButtonClear);
-            this.Controls.Add(this.ButtonStart);
-            this.Controls.Add(this.chart1);
-            this.Controls.Add(this.textBoxRes);
+            this.Controls.Add(this.labelInfo);
+            this.Controls.Add(this.radioButtonSimpson);
+            this.Controls.Add(this.radioButtonTrapezoids);
+            this.Controls.Add(this.radioButtonRectangles);
+            this.Controls.Add(this.buttonStopIntegral);
+            this.Controls.Add(this.checkBoxAutoN);
+            this.Controls.Add(this.textBoxN);
+            this.Controls.Add(this.label5);
+            this.Controls.Add(this.textBoxFunction);
+            this.Controls.Add(this.buttonClearIntegral);
+            this.Controls.Add(this.buttonCalculateIntegral);
+            this.Controls.Add(this.chartIntegration);
+            this.Controls.Add(this.textBoxResult);
             this.Controls.Add(this.label9);
-            this.Controls.Add(this.label8);
-            this.Controls.Add(this.textBoxE);
+            this.Controls.Add(this.textBoxEpsilon);
             this.Controls.Add(this.textBoxB);
             this.Controls.Add(this.textBoxA);
             this.Controls.Add(this.label2);
@@ -225,7 +295,7 @@
             this.Controls.Add(this.labelF);
             this.Name = "Integral";
             this.Text = "Form1";
-            ((System.ComponentModel.ISupportInitialize)(this.chart1)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.chartIntegration)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -233,14 +303,13 @@
 
         #endregion
 
-        private System.Windows.Forms.TextBox textBoxF;
-        private System.Windows.Forms.Button ButtonClear;
-        private System.Windows.Forms.Button ButtonStart;
-        private System.Windows.Forms.DataVisualization.Charting.Chart chart1;
-        private System.Windows.Forms.TextBox textBoxRes;
+        private System.Windows.Forms.TextBox textBoxFunction;
+        private System.Windows.Forms.Button buttonClearIntegral;
+        private System.Windows.Forms.Button buttonCalculateIntegral;
+        private System.Windows.Forms.DataVisualization.Charting.Chart chartIntegration;
+        private System.Windows.Forms.TextBox textBoxResult;
         private System.Windows.Forms.Label label9;
-        private System.Windows.Forms.Label label8;
-        private System.Windows.Forms.TextBox textBoxE;
+        private System.Windows.Forms.TextBox textBoxEpsilon;
         private System.Windows.Forms.TextBox textBoxB;
         private System.Windows.Forms.TextBox textBoxA;
         private System.Windows.Forms.Label label2;
@@ -249,6 +318,13 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label labelA;
         private System.Windows.Forms.Label labelF;
-        private System.Windows.Forms.ComboBox comboBoxMethods;
+        private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.TextBox textBoxN;
+        private System.Windows.Forms.CheckBox checkBoxAutoN;
+        private System.Windows.Forms.Button buttonStopIntegral;
+        private System.Windows.Forms.RadioButton radioButtonRectangles;
+        private System.Windows.Forms.RadioButton radioButtonTrapezoids;
+        private System.Windows.Forms.RadioButton radioButtonSimpson;
+        private System.Windows.Forms.Label labelInfo;
     }
 }

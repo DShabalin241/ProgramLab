@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
@@ -12,973 +13,810 @@ namespace ProgramLab
 {
     public partial class Integral : Form
     {
-        // Приватные поля для хранения данных
-        private string _functionText = "";
-        private double _a = 0;
-        private double _b = 0;
-        private double _e = 0.001;
-        private int _decimalPlaces = 3;
-        private IntegrationMethod _currentMethod = IntegrationMethod.Rectangle;
-
-        // Перечисление для методов интегрирования
-        private enum IntegrationMethod
-        {
-            Rectangle,
-            Trapezoidal,
-            Simpson
-        }
+        private CancellationTokenSource _cancellationTokenSource;
+        private bool _isCalculationRunning = false;
+        private const double INFINITY_THRESHOLD = 1e10;
 
         public Integral()
         {
             InitializeComponent();
             SetupChart();
-            SetupComboBox();
+            SetupEventHandlers();
         }
 
         private void SetupChart()
         {
-            chart1.Series.Clear();
+            chartIntegration.Series.Clear();
 
-            // Настройка области графика
-            ChartArea chartArea = chart1.ChartAreas[0];
-            chartArea.AxisX.Crossing = 0;
-            chartArea.AxisY.Crossing = 0;
-            chartArea.AxisX.MajorGrid.LineColor = Color.LightGray;
-            chartArea.AxisY.MajorGrid.LineColor = Color.LightGray;
-            chartArea.AxisX.Title = "X";
-            chartArea.AxisY.Title = "Y";
-
-            // Устанавливаем фиксированный масштаб
-            chartArea.AxisX.Minimum = -10;
-            chartArea.AxisX.Maximum = 10;
-            chartArea.AxisY.Minimum = -10;
-            chartArea.AxisY.Maximum = 10;
-
-            AddAxes();
-        }
-
-        private void SetupComboBox()
-        {
-            comboBoxMethods.Items.Add("Метод прямоугольников");
-            comboBoxMethods.Items.Add("Метод трапеций");
-            comboBoxMethods.Items.Add("Метод Симпсона");
-            comboBoxMethods.SelectedIndex = 0;
-        }
-
-        private void AddAxes()
-        {
-            // Удаляем старые оси если есть
-            var seriesToRemove = chart1.Series
-                .Where(s => s.Name == "XAxis" || s.Name == "YAxis")
-                .ToList();
-            foreach (var series in seriesToRemove)
-            {
-                chart1.Series.Remove(series);
-            }
-
-            // Ось X
-            var xAxis = new Series("XAxis")
-            {
-                ChartType = SeriesChartType.Line,
-                Color = Color.Black,
-                BorderWidth = 1
-            };
-            xAxis.Points.AddXY(-1000, 0);
-            xAxis.Points.AddXY(1000, 0);
-            chart1.Series.Add(xAxis);
-
-            // Ось Y
-            var yAxis = new Series("YAxis")
-            {
-                ChartType = SeriesChartType.Line,
-                Color = Color.Black,
-                BorderWidth = 1
-            };
-            yAxis.Points.AddXY(0, -1000);
-            yAxis.Points.AddXY(0, 1000);
-            chart1.Series.Add(yAxis);
-        }
-
-        // Кнопка запуска вычислений
-        private void buttonStart_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                if (!GetInputData())
-                    return;
-
-                ClearChart();
-                DrawFunction();
-                DrawBoundaries();
-
-                double result = CalculateIntegral();
-                textBoxRes.Text = result.ToString($"F{_decimalPlaces}");
-
-                // Автоматически устанавливаем масштаб для отображения функции
-                AutoScaleChart();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void AutoScaleChart()
-        {
-            try
-            {
-                var chartArea = chart1.ChartAreas[0];
-
-                // Находим min и max значения функции на отрезке [A, B]
-                double minY = double.MaxValue;
-                double maxY = double.MinValue;
-                int samples = 100;
-
-                for (int i = 0; i <= samples; i++)
-                {
-                    double x = _a + i * (_b - _a) / samples;
-                    try
-                    {
-                        double y = CalculateFunction(x);
-                        if (!double.IsNaN(y) && !double.IsInfinity(y))
-                        {
-                            minY = Math.Min(minY, y);
-                            maxY = Math.Max(maxY, y);
-                        }
-                    }
-                    catch { }
-                }
-
-                // Если не нашли значений, используем стандартный диапазон
-                if (minY > maxY)
-                {
-                    minY = -10;
-                    maxY = 10;
-                }
-
-                // Добавляем отступы
-                double xPadding = (_b - _a) * 0.1;
-                double yPadding = Math.Max(Math.Abs(maxY - minY) * 0.1, 1);
-
-                double xMin = Math.Min(_a - xPadding, -10);
-                double xMax = Math.Max(_b + xPadding, 10);
-                double yMin = Math.Min(minY - yPadding, -10);
-                double yMax = Math.Max(maxY + yPadding, 10);
-
-                // Устанавливаем масштаб
-                chartArea.AxisX.Minimum = xMin;
-                chartArea.AxisX.Maximum = xMax;
-                chartArea.AxisY.Minimum = yMin;
-                chartArea.AxisY.Maximum = yMax;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при авто-масштабировании: {ex.Message}");
-            }
-        }
-
-        private bool GetInputData()
-        {
-            // Проверка функции
-            if (string.IsNullOrWhiteSpace(textBoxF.Text))
-            {
-                MessageBox.Show("Введите функцию!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                textBoxF.Focus();
-                return false;
-            }
-
-            _functionText = textBoxF.Text.Trim();
-
-            // Проверка чисел
-            if (!TryParseDouble(textBoxA.Text, out _a))
-            {
-                MessageBox.Show("Неверный формат числа A!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                textBoxA.Focus();
-                return false;
-            }
-
-            if (!TryParseDouble(textBoxB.Text, out _b))
-            {
-                MessageBox.Show("Неверный формат числа B!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                textBoxB.Focus();
-                return false;
-            }
-
-            // Проверка A < B
-            if (_a >= _b)
-            {
-                MessageBox.Show("A должно быть меньше B!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            // Проверка точности
-            if (!int.TryParse(textBoxE.Text, out _decimalPlaces) || _decimalPlaces <= 0)
-            {
-                MessageBox.Show("Точность должна быть положительным целым числом!", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                textBoxE.Focus();
-                return false;
-            }
-
-            _e = Math.Pow(10, -_decimalPlaces);
-
-            // Получаем выбранный метод
-            switch (comboBoxMethods.SelectedIndex)
-            {
-                case 0: _currentMethod = IntegrationMethod.Rectangle; break;
-                case 1: _currentMethod = IntegrationMethod.Trapezoidal; break;
-                case 2: _currentMethod = IntegrationMethod.Simpson; break;
-            }
-
-            return true;
-        }
-
-        private bool TryParseDouble(string text, out double result)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                result = 0;
-                return false;
-            }
-
-            text = text.Replace(',', '.');
-            return double.TryParse(text, NumberStyles.Any,
-                CultureInfo.InvariantCulture, out result);
-        }
-
-        private double CalculateFunction(double x)
-        {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(_functionText))
-                    throw new Exception("Функция не задана");
-
-                // Преобразуем функцию для вычисления
-                string expression = _functionText.ToLower().Trim();
-
-                // Заменяем константы
-                expression = expression.Replace("pi", Math.PI.ToString(CultureInfo.InvariantCulture));
-                expression = expression.Replace("e", Math.E.ToString(CultureInfo.InvariantCulture));
-
-                // Заменяем x на значение, добавляя скобки для отрицательных чисел
-                expression = ReplaceXWithValue(expression, x);
-
-                // Заменяем ^ на ** для DataTable.Compute
-                expression = expression.Replace("^", "**");
-
-                // Заменяем математические функции
-                expression = ReplaceMathFunctions(expression);
-
-                // Вычисляем выражение
-                return EvaluateExpressionWithDataTable(expression);
-            }
-            catch (DivideByZeroException)
-            {
-                return double.NaN;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Ошибка вычисления функции при x = {x}: {ex.Message}");
-            }
-        }
-
-        // Замена переменной x с учетом отрицательных чисел
-        private string ReplaceXWithValue(string expression, double x)
-        {
-            string xValue = x.ToString(CultureInfo.InvariantCulture);
-
-            // Список операторов, перед которыми может стоять x
-            char[] operators = { '+', '-', '*', '/', '^', '(', ')', ',', '=' };
-
-            // Строим результат посимвольно
-            string result = "";
-
-            for (int i = 0; i < expression.Length; i++)
-            {
-                if (expression[i] == 'x' || expression[i] == 'X')
-                {
-                    // Проверяем, стоит ли перед x оператор
-                    bool needsParentheses = x < 0;
-
-                    if (i > 0)
-                    {
-                        char prevChar = expression[i - 1];
-                        // Если перед x стоит цифра, буква или закрывающая скобка, нужно добавить *
-                        if (char.IsDigit(prevChar) || char.IsLetter(prevChar) || prevChar == ')')
-                        {
-                            result += "*";
-                        }
-                    }
-
-                    if (needsParentheses)
-                    {
-                        result += "(" + xValue + ")";
-                    }
-                    else
-                    {
-                        result += xValue;
-                    }
-
-                    // Проверяем, нужно ли добавить * после x
-                    if (i < expression.Length - 1)
-                    {
-                        char nextChar = expression[i + 1];
-                        if (char.IsDigit(nextChar) || char.IsLetter(nextChar) || nextChar == '(')
-                        {
-                            result += "*";
-                        }
-                    }
-                }
-                else
-                {
-                    result += expression[i];
-                }
-            }
-
-            return result;
-        }
-
-        // Замена математических функций
-        private string ReplaceMathFunctions(string expression)
-        {
-            var replacements = new Dictionary<string, string>
-    {
-        { "sin", "Sin" },
-        { "cos", "Cos" },
-        { "tan", "Tan" },
-        { "tg", "Tan" },
-        { "asin", "Asin" },
-        { "acos", "Acos" },
-        { "atan", "Atan" },
-        { "sinh", "Sinh" },
-        { "cosh", "Cosh" },
-        { "tanh", "Tanh" },
-        { "log", "Log" },
-        { "ln", "Log" },
-        { "lg", "Log10" },
-        { "exp", "Exp" },
-        { "sqrt", "Sqrt" },
-        { "abs", "Abs" }
-    };
-
-            foreach (var replacement in replacements)
-            {
-                expression = Regex.Replace(expression, $@"\b{replacement.Key}\b", replacement.Value, RegexOptions.IgnoreCase);
-            }
-
-            return expression;
-        }
-
-        // Вычисление выражения с помощью DataTable
-        private double EvaluateExpressionWithDataTable(string expression)
-        {
-            try
-            {
-                // Удаляем лишние пробелы
-                expression = expression.Replace(" ", "");
-
-                // Проверяем баланс скобок
-                int balance = 0;
-                foreach (char c in expression)
-                {
-                    if (c == '(') balance++;
-                    if (c == ')') balance--;
-                    if (balance < 0) throw new Exception("Несбалансированные скобки");
-                }
-                if (balance != 0) throw new Exception("Несбалансированные скобки");
-
-                var dataTable = new System.Data.DataTable();
-                object result = dataTable.Compute(expression, "");
-
-                if (result == DBNull.Value)
-                    throw new Exception("Результат вычисления не определен");
-
-                return Convert.ToDouble(result);
-            }
-            catch (Exception ex)
-            {
-                // Альтернативный метод для сложных случаев
-                return EvaluateWithCustomMethod(expression);
-            }
-        }
-
-        // Альтернативный метод вычисления
-        private double EvaluateWithCustomMethod(string expression)
-        {
-            // Пытаемся разобрать выражение вручную для простых случаев
-            if (expression.Contains("**"))
-            {
-                // Обработка степеней
-                var parts = expression.Split(new[] { "**" }, 2, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2)
-                {
-                    double baseVal = EvaluateSimpleNumber(parts[0]);
-                    double expVal = EvaluateSimpleNumber(parts[1]);
-                    return Math.Pow(baseVal, expVal);
-                }
-            }
-
-            // Для простых арифметических выражений
-            if (!expression.Contains("(") && !expression.Contains(")"))
-            {
-                try
-                {
-                    var dataTable = new System.Data.DataTable();
-                    return Convert.ToDouble(dataTable.Compute(expression, ""));
-                }
-                catch
-                {
-                    throw new Exception($"Не удалось вычислить: {expression}");
-                }
-            }
-
-            throw new Exception($"Слишком сложное выражение: {expression}");
-        }
-
-        // Вычисление простого числа или выражения без скобок
-        private double EvaluateSimpleNumber(string expr)
-        {
-            expr = expr.Trim();
-
-            if (double.TryParse(expr, NumberStyles.Any, CultureInfo.InvariantCulture, out double result))
-            {
-                return result;
-            }
-
-            try
-            {
-                var dataTable = new System.Data.DataTable();
-                return Convert.ToDouble(dataTable.Compute(expr, ""));
-            }
-            catch
-            {
-                throw new Exception($"Не удалось вычислить: {expr}");
-            }
-        }
-
-        // Препроцессинг выражения - заменяем все функции и операторы
-        private string PreprocessExpression(string expression, double x)
-        {
-            expression = expression.Trim().ToLower();
-
-            // Заменяем x на значение в скобках всегда
-            string xValue = x.ToString(CultureInfo.InvariantCulture);
-            if (x < 0)
-            {
-                xValue = "(" + xValue + ")";
-            }
-
-            // Простая замена x, но аккуратно
-            expression = expression.Replace("x", xValue);
-
-            // Заменяем константы
-            expression = expression.Replace("pi", Math.PI.ToString(CultureInfo.InvariantCulture));
-            expression = expression.Replace("e", Math.E.ToString(CultureInfo.InvariantCulture));
-
-            // Заменяем ^ на ** для DataTable
-            expression = expression.Replace("^", "**");
-
-            // Простые замены функций
-            expression = expression.Replace("sin(", "Sin(");
-            expression = expression.Replace("cos(", "Cos(");
-            expression = expression.Replace("tan(", "Tan(");
-            expression = expression.Replace("exp(", "Exp(");
-            expression = expression.Replace("log(", "Log(");
-            expression = expression.Replace("ln(", "Log(");
-            expression = expression.Replace("sqrt(", "Sqrt(");
-
-            return expression;
-        }
-
-        // Замена переменной x на ее значение
-        private string ReplaceVariableWithValue(string expression, string variable, string value)
-        {
-            // Регулярное выражение для поиска переменной x
-            string pattern = @"(?<![a-zA-Z0-9_])" + variable + @"(?![a-zA-Z0-9_])";
-            return Regex.Replace(expression, pattern, value);
-        }
-
-        // Обработка оператора возведения в степень ^
-        private string ProcessPowerOperator(string expression)
-        {
-            // Заменяем ^ на ** для DataTable.Compute
-            return expression.Replace("^", "**");
-        }
-
-        // Обработка математических функций
-        private string ProcessMathFunctions(string expression)
-        {
-            // Список всех поддерживаемых функций и их замены для DataTable.Compute
-            var functionReplacements = new Dictionary<string, string>
-            {
-                // Тригонометрические функции
-                { @"sin\(", "Sin(" },
-                { @"cos\(", "Cos(" },
-                { @"tan\(", "Tan(" },
-                { @"tg\(", "Tan(" },
-                { @"ctg\(", "Cotan(" },
-                
-                // Обратные тригонометрические функции
-                { @"asin\(", "Asin(" },
-                { @"acos\(", "Acos(" },
-                { @"atan\(", "Atan(" },
-                
-                // Гиперболические функции
-                { @"sinh\(", "Sinh(" },
-                { @"cosh\(", "Cosh(" },
-                { @"tanh\(", "Tanh(" },
-                
-                // Логарифмические функции
-                { @"log\(", "Log(" },      // натуральный логарифм
-                { @"ln\(", "Log(" },       // натуральный логарифм
-                { @"lg\(", "Log10(" },     // десятичный логарифм
-                
-                // Экспонента
-                { @"exp\(", "Exp(" },
-                
-                // Квадратный корень
-                { @"sqrt\(", "Sqrt(" },
-                
-                // Модуль
-                { @"abs\(", "Abs(" }
-            };
-
-            // Применяем все замены
-            foreach (var replacement in functionReplacements)
-            {
-                expression = Regex.Replace(expression, replacement.Key, replacement.Value, RegexOptions.IgnoreCase);
-            }
-
-            return expression;
-        }
-
-        // Вычисление математического выражения с использованием DataTable.Compute
-        private double EvaluateMathExpression(string expression)
-        {
-            try
-            {
-                // Проверяем скобки
-                if (!CheckParentheses(expression))
-                {
-                    throw new Exception("Несбалансированные скобки в выражении");
-                }
-
-                // Убираем лишние пробелы
-                expression = expression.Replace(" ", "");
-
-                // Используем DataTable.Compute для вычисления выражения
-                var dataTable = new System.Data.DataTable();
-
-                try
-                {
-                    var result = dataTable.Compute(expression, "");
-
-                    if (result == DBNull.Value)
-                        throw new Exception("Не удалось вычислить выражение");
-
-                    return Convert.ToDouble(result);
-                }
-                catch (System.Data.EvaluateException ex)
-                {
-                    throw new Exception($"Ошибка вычисления: {ex.Message}");
-                }
-                catch (System.Data.SyntaxErrorException ex)
-                {
-                    throw new Exception($"Синтаксическая ошибка: {ex.Message}");
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Ошибка при вычислении выражения '{expression}': {ex.Message}");
-            }
-        }
-
-        // Проверка баланса скобок
-        private bool CheckParentheses(string expression)
-        {
-            int balance = 0;
-
-            foreach (char c in expression)
-            {
-                if (c == '(')
-                    balance++;
-                else if (c == ')')
-                    balance--;
-
-                if (balance < 0)
-                    return false;
-            }
-
-            return balance == 0;
-        }
-
-        private void DrawFunction()
-        {
-            var functionSeries = new Series("Function")
+            // График функции
+            Series functionSeries = new Series("Функция")
             {
                 ChartType = SeriesChartType.Line,
                 Color = Color.Blue,
                 BorderWidth = 2
             };
+            chartIntegration.Series.Add(functionSeries);
 
-            // Используем диапазон функции с небольшими отступами
-            double displayMin = Math.Min(_a, _b) - 2;
-            double displayMax = Math.Max(_a, _b) + 2;
-
-            int pointsCount = 1000; // Фиксированное количество точек для гладкого графика
-            double step = (displayMax - displayMin) / pointsCount;
-
-            bool lastPointValid = false;
-            double lastY = 0;
-
-            for (int i = 0; i <= pointsCount; i++)
+            // Прямоугольники
+            Series rectanglesSeries = new Series("Прямоугольники")
             {
-                double x = displayMin + i * step;
+                ChartType = SeriesChartType.Area,
+                Color = Color.FromArgb(80, Color.Green),
+                BorderColor = Color.Green,
+                BorderWidth = 1
+            };
+            chartIntegration.Series.Add(rectanglesSeries);
 
+            // Трапеции
+            Series trapezoidsSeries = new Series("Трапеции")
+            {
+                ChartType = SeriesChartType.Area,
+                Color = Color.FromArgb(80, Color.Orange),
+                BorderColor = Color.Orange,
+                BorderWidth = 1
+            };
+            chartIntegration.Series.Add(trapezoidsSeries);
+
+            // Параболы (Симпсон)
+            Series parabolasSeries = new Series("Параболы")
+            {
+                ChartType = SeriesChartType.Area,
+                Color = Color.FromArgb(80, Color.Red),
+                BorderColor = Color.Red,
+                BorderWidth = 1
+            };
+            chartIntegration.Series.Add(parabolasSeries);
+
+            // Границы интегрирования
+            Series boundsSeries = new Series("Границы")
+            {
+                ChartType = SeriesChartType.Line,
+                Color = Color.Black,
+                BorderWidth = 2,
+                BorderDashStyle = ChartDashStyle.Dash
+            };
+            chartIntegration.Series.Add(boundsSeries);
+
+            // Настройка осей
+            chartIntegration.ChartAreas[0].AxisX.Title = "X";
+            chartIntegration.ChartAreas[0].AxisY.Title = "Y";
+            chartIntegration.ChartAreas[0].AxisX.LabelStyle.Format = "F2";
+            chartIntegration.ChartAreas[0].AxisY.LabelStyle.Format = "F2";
+        }
+
+        private void SetupEventHandlers()
+        {
+            // Проверка ввода
+            textBoxA.KeyPress += TextBoxNumber_KeyPress;
+            textBoxB.KeyPress += TextBoxNumber_KeyPress;
+            textBoxN.KeyPress += TextBoxPositiveInteger_KeyPress;
+
+            // Обработчики
+            buttonCalculateIntegral.Click += ButtonCalculateIntegral_Click;
+            buttonStopIntegral.Click += ButtonStopIntegral_Click;
+            buttonClearIntegral.Click += ButtonClearIntegral_Click;
+            checkBoxAutoN.CheckedChanged += CheckBoxAutoN_CheckedChanged;
+        }
+
+        #region Обработчики ввода
+        private void TextBoxNumber_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            System.Windows.Forms.TextBox textBox = (System.Windows.Forms.TextBox)sender;
+            string currentText = textBox.Text;
+            int selectionStart = textBox.SelectionStart;
+
+            if (char.IsControl(e.KeyChar))
+            {
+                e.Handled = false;
+                return;
+            }
+
+            if (e.KeyChar == '-' && selectionStart == 0 && !currentText.Contains("-"))
+            {
+                e.Handled = false;
+                return;
+            }
+
+            if (e.KeyChar == '.' || e.KeyChar == ',')
+            {
+                if (!currentText.Contains('.') && !currentText.Contains(','))
+                {
+                    e.KeyChar = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
+                    e.Handled = false;
+                }
+                else
+                {
+                    e.Handled = true;
+                }
+                return;
+            }
+
+            if (!char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+                return;
+            }
+
+            e.Handled = false;
+        }
+
+        private void TextBoxPositiveInteger_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+        #endregion
+
+        #region Методы вычисления функции
+        private double EvaluateFunction(string function, double x)
+        {
+            try
+            {
+                string expression = function.ToLower();
+
+                // Обработка котангенса
+                expression = expression.Replace("ctg", "(1/tan)");
+
+                // Замена констант
+                expression = expression
+                    .Replace("pi", Math.PI.ToString(CultureInfo.InvariantCulture))
+                    .Replace("e", Math.E.ToString(CultureInfo.InvariantCulture));
+
+                // Замена переменной x
+                expression = ReplaceXInExpression(expression, x);
+
+                // Вычисление выражения
+                return EvaluateSimpleExpression(expression);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Ошибка вычисления функции в точке x={x}: {ex.Message}");
+            }
+        }
+
+        private string ReplaceXInExpression(string expression, double x)
+        {
+            expression = expression.Replace("x", $"({x.ToString(CultureInfo.InvariantCulture)})");
+            expression = expression.Replace("X", $"({x.ToString(CultureInfo.InvariantCulture)})");
+            return expression;
+        }
+
+        private double EvaluateSimpleExpression(string expression)
+        {
+            System.Data.DataTable table = new System.Data.DataTable();
+            expression = expression.Replace(",", ".");
+            expression = expression.Replace("^", "**");
+
+            table.Columns.Add("expression", typeof(string), expression);
+            System.Data.DataRow row = table.NewRow();
+            table.Rows.Add(row);
+            return double.Parse((string)row["expression"]);
+        }
+        #endregion
+
+        #region Методы численного интегрирования
+
+        // Получение выбранного метода
+        private string GetSelectedMethod()
+        {
+            if (radioButtonRectangles.Checked) return "Прямоугольники";
+            if (radioButtonTrapezoids.Checked) return "Трапеции";
+            if (radioButtonSimpson.Checked) return "Симпсон";
+            return "Прямоугольники";
+        }
+
+        // Основной метод расчета интеграла
+        private double CalculateIntegral(string function, double a, double b, int n, string method)
+        {
+            switch (method)
+            {
+                case "Прямоугольники":
+                    return RectanglesMethod(function, a, b, n);
+                case "Трапеции":
+                    return TrapezoidsMethod(function, a, b, n);
+                case "Симпсон":
+                    return SimpsonMethod(function, a, b, n);
+                default:
+                    return RectanglesMethod(function, a, b, n);
+            }
+        }
+
+        // Метод прямоугольников (левые прямоугольники)
+        private double RectanglesMethod(string function, double a, double b, int n)
+        {
+            double h = (b - a) / n;
+            double sum = 0;
+
+            for (int i = 0; i < n; i++)
+            {
+                double x = a + i * h;
                 try
                 {
-                    double y = CalculateFunction(x);
-
-                    if (!double.IsNaN(y) && !double.IsInfinity(y))
+                    double y = EvaluateFunction(function, x);
+                    if (!double.IsInfinity(y) && !double.IsNaN(y))
                     {
-                        // Ограничиваем очень большие значения для отображения
-                        if (y > 10000) y = 10000;
-                        if (y < -10000) y = -10000;
-
-                        functionSeries.Points.AddXY(x, y);
-
-                        if (!lastPointValid)
-                        {
-                            functionSeries.Points.AddXY(x, y);
-                        }
-
-                        lastPointValid = true;
-                        lastY = y;
-                    }
-                    else
-                    {
-                        if (lastPointValid)
-                        {
-                            functionSeries.Points.AddXY(x, lastY);
-                            functionSeries.Points.AddXY(x, double.NaN);
-                        }
-                        lastPointValid = false;
+                        sum += Math.Abs(y * h); // Площадь прямоугольника
                     }
                 }
                 catch
                 {
-                    if (lastPointValid)
-                    {
-                        functionSeries.Points.AddXY(x, lastY);
-                        functionSeries.Points.AddXY(x, double.NaN);
-                    }
-                    lastPointValid = false;
+                    // Пропускаем точки разрыва
                 }
             }
 
-            chart1.Series.Add(functionSeries);
+            return sum;
         }
 
-        private void DrawBoundaries()
+        // Метод трапеций
+        private double TrapezoidsMethod(string function, double a, double b, int n)
         {
-            // Левая граница
-            var leftBoundary = new Series("LeftBoundary")
-            {
-                ChartType = SeriesChartType.Line,
-                Color = Color.Red,
-                BorderWidth = 2,
-                BorderDashStyle = ChartDashStyle.Dash
-            };
+            double h = (b - a) / n;
+            double sum = 0;
 
-            // Находим min и max значение функции на отрезке
-            double minY = double.MaxValue;
-            double maxY = double.MinValue;
-            int samples = 100;
-
-            for (int i = 0; i <= samples; i++)
+            try
             {
-                double x = _a + i * (_b - _a) / samples;
+                double y0 = EvaluateFunction(function, a);
+                double yn = EvaluateFunction(function, b);
+
+                if (!double.IsInfinity(y0) && !double.IsNaN(y0) &&
+                    !double.IsInfinity(yn) && !double.IsNaN(yn))
+                {
+                    sum = (Math.Abs(y0) + Math.Abs(yn)) / 2;
+                }
+            }
+            catch
+            {
+                // Если на границах функция не определена
+            }
+
+            for (int i = 1; i < n; i++)
+            {
+                double x = a + i * h;
                 try
                 {
-                    double y = CalculateFunction(x);
-                    if (!double.IsNaN(y) && !double.IsInfinity(y))
+                    double y = EvaluateFunction(function, x);
+                    if (!double.IsInfinity(y) && !double.IsNaN(y))
                     {
-                        minY = Math.Min(minY, y);
-                        maxY = Math.Max(maxY, y);
+                        sum += Math.Abs(y); // Сумма средних линий
                     }
                 }
-                catch { }
+                catch
+                {
+                    // Пропускаем точки разрыва
+                }
             }
 
-            if (minY > maxY)
-            {
-                minY = -10;
-                maxY = 10;
-            }
-
-            minY -= 1;
-            maxY += 1;
-
-            leftBoundary.Points.AddXY(_a, minY);
-            leftBoundary.Points.AddXY(_a, maxY);
-            chart1.Series.Add(leftBoundary);
-
-            // Правая граница
-            var rightBoundary = new Series("RightBoundary")
-            {
-                ChartType = SeriesChartType.Line,
-                Color = Color.Green,
-                BorderWidth = 2,
-                BorderDashStyle = ChartDashStyle.Dash
-            };
-
-            rightBoundary.Points.AddXY(_b, minY);
-            rightBoundary.Points.AddXY(_b, maxY);
-            chart1.Series.Add(rightBoundary);
+            return sum * h; // Умножаем на шаг в конце
         }
 
-        private double CalculateIntegral()
+        // Метод Симпсона (парабол)
+        private double SimpsonMethod(string function, double a, double b, int n)
         {
-            switch (_currentMethod)
+            if (n % 2 != 0) n++; // Методу Симпсона нужно четное n
+
+            double h = (b - a) / n;
+            double sum = 0;
+
+            try
             {
-                case IntegrationMethod.Rectangle:
-                    return RectangleMethod();
-                case IntegrationMethod.Trapezoidal:
-                    return TrapezoidalMethod();
-                case IntegrationMethod.Simpson:
-                    return SimpsonMethod();
-                default:
-                    return RectangleMethod();
+                double y0 = EvaluateFunction(function, a);
+                double yn = EvaluateFunction(function, b);
+
+                if (!double.IsInfinity(y0) && !double.IsNaN(y0) &&
+                    !double.IsInfinity(yn) && !double.IsNaN(yn))
+                {
+                    sum = Math.Abs(y0) + Math.Abs(yn);
+                }
             }
+            catch
+            {
+                // Если на границах функция не определена
+            }
+
+            for (int i = 1; i < n; i++)
+            {
+                double x = a + i * h;
+                try
+                {
+                    double y = EvaluateFunction(function, x);
+                    if (!double.IsInfinity(y) && !double.IsNaN(y))
+                    {
+                        double coefficient = (i % 2 == 0) ? 2 : 4;
+                        sum += coefficient * Math.Abs(y);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем точки разрыва
+                }
+            }
+
+            return sum * h / 3;
         }
 
-        // Уменьшил начальное количество разбиений с 1000 до 100
-        private double RectangleMethod()
+        // Адаптивный метод с контролем точности
+        private async Task<double> AdaptiveIntegrateAsync(
+            string function,
+            double a,
+            double b,
+            double precision,
+            string method,
+            CancellationToken cancellationToken)
         {
-            int n = 100; // УМЕНЬШЕНО С 1000 ДО 100
-            double previousResult = 0;
-            double currentResult = 0;
+            int n = 4;
+            double previousResult = CalculateIntegral(function, a, b, n, method);
+            double currentResult;
+            int iteration = 0;
+            const int maxIterations = 20;
 
-            do
+            while (iteration < maxIterations && !cancellationToken.IsCancellationRequested)
             {
-                previousResult = currentResult;
                 n *= 2;
-                currentResult = 0;
-                double h = (_b - _a) / n;
+                if (method == "Симпсон" && n % 2 != 0) n++;
 
-                for (int i = 0; i < n; i++)
+                currentResult = CalculateIntegral(function, a, b, n, method);
+
+                // Правило Рунге для оценки погрешности
+                double errorEstimate = Math.Abs(currentResult - previousResult);
+
+                if (errorEstimate < precision)
                 {
-                    double x = _a + i * h + h / 2;
-                    double y = CalculateFunction(x);
-
-                    if (!double.IsNaN(y) && !double.IsInfinity(y))
-                    {
-                        currentResult += y * h;
-                    }
+                    return currentResult;
                 }
-            } while (Math.Abs(currentResult - previousResult) > _e && n < 1000000);
 
-            return currentResult;
-        }
-
-        private double TrapezoidalMethod()
-        {
-            int n = 100; // УМЕНЬШЕНО С 1000 ДО 100
-            double previousResult = 0;
-            double currentResult = 0;
-
-            do
-            {
                 previousResult = currentResult;
-                n *= 2;
-                currentResult = 0;
-                double h = (_b - _a) / n;
+                iteration++;
 
-                for (int i = 0; i < n; i++)
+                await Task.Delay(50, cancellationToken);
+            }
+
+            return previousResult;
+        }
+
+        #endregion
+
+        #region Визуализация
+
+        private void PlotFunctionAndAreas(string function, double a, double b, int n)
+        {
+            // Очищаем все графики
+            chartIntegration.Series["Функция"].Points.Clear();
+            chartIntegration.Series["Прямоугольники"].Points.Clear();
+            chartIntegration.Series["Трапеции"].Points.Clear();
+            chartIntegration.Series["Параболы"].Points.Clear();
+            chartIntegration.Series["Границы"].Points.Clear();
+
+            if (n <= 0) n = 1;
+            string method = GetSelectedMethod();
+
+            // Вычисляем ширину разбиений (одинаковая для всех методов)
+            double h = (b - a) / n;
+
+            // Построение функции
+            int pointsCount = 1000;
+            double step = (b - a) / pointsCount;
+            List<double> validYValues = new List<double>();
+
+            // График функции
+            for (int i = 0; i <= pointsCount; i++)
+            {
+                double x = a + i * step;
+                try
                 {
-                    double x1 = _a + i * h;
-                    double x2 = _a + (i + 1) * h;
-                    double y1 = CalculateFunction(x1);
-                    double y2 = CalculateFunction(x2);
+                    double y = EvaluateFunction(function, x);
 
-                    if (!double.IsNaN(y1) && !double.IsInfinity(y1) &&
-                        !double.IsNaN(y2) && !double.IsInfinity(y2))
+                    if (!double.IsInfinity(y) && !double.IsNaN(y) && Math.Abs(y) < INFINITY_THRESHOLD)
                     {
-                        currentResult += (y1 + y2) * h / 2;
+                        chartIntegration.Series["Функция"].Points.AddXY(x, y);
+                        validYValues.Add(y);
+                    }
+                    else
+                    {
+                        chartIntegration.Series["Функция"].Points.AddXY(x, double.NaN);
                     }
                 }
-            } while (Math.Abs(currentResult - previousResult) > _e && n < 1000000);
-
-            return currentResult;
-        }
-
-        private double SimpsonMethod()
-        {
-            // УМЕНЬШЕНО С 1000 ДО 100
-            int n = 100;
-            if (n % 2 != 0) n++;
-
-            double previousResult = 0;
-            double currentResult = 0;
-
-            do
-            {
-                previousResult = currentResult;
-                n += 2;
-                currentResult = 0;
-                double h = (_b - _a) / n;
-
-                for (int i = 0; i <= n; i++)
+                catch
                 {
-                    double x = _a + i * h;
-                    double y = CalculateFunction(x);
-
-                    if (double.IsNaN(y) || double.IsInfinity(y))
-                    {
-                        return double.NaN;
-                    }
-
-                    double coefficient = (i == 0 || i == n) ? 1 : (i % 2 == 0) ? 2 : 4;
-                    currentResult += coefficient * y;
+                    chartIntegration.Series["Функция"].Points.AddXY(x, double.NaN);
                 }
+            }
 
-                currentResult *= h / 3;
-            } while (Math.Abs(currentResult - previousResult) > _e && n < 1000000);
+            // Отрисовка в зависимости от выбранного метода
+            switch (method)
+            {
+                case "Прямоугольники":
+                    DrawRectangles(function, a, b, n, h);
+                    break;
+                case "Трапеции":
+                    DrawTrapezoids(function, a, b, n, h);
+                    break;
+                case "Симпсон":
+                    DrawParabolas(function, a, b, n, h);
+                    break;
+            }
 
-            return currentResult;
+            // Границы интегрирования
+            double yMin, yMax;
+            if (validYValues.Count > 0)
+            {
+                yMin = validYValues.Min() - 1;
+                yMax = validYValues.Max() + 1;
+                yMin = Math.Min(yMin, -1);
+                yMax = Math.Max(yMax, 1);
+            }
+            else
+            {
+                yMin = -10;
+                yMax = 10;
+            }
+
+            // Вертикальные линии границ
+            chartIntegration.Series["Границы"].Points.AddXY(a, yMin);
+            chartIntegration.Series["Границы"].Points.AddXY(a, yMax);
+            chartIntegration.Series["Границы"].Points.AddXY(double.NaN, double.NaN);
+            chartIntegration.Series["Границы"].Points.AddXY(b, yMin);
+            chartIntegration.Series["Границы"].Points.AddXY(b, yMax);
+
+            // Настройка масштаба графика
+            chartIntegration.ChartAreas[0].AxisX.Minimum = a - Math.Abs(b - a) * 0.1;
+            chartIntegration.ChartAreas[0].AxisX.Maximum = b + Math.Abs(b - a) * 0.1;
+            chartIntegration.ChartAreas[0].AxisY.Minimum = yMin;
+            chartIntegration.ChartAreas[0].AxisY.Maximum = yMax;
+
+            // Ось X (y=0)
+            if (chartIntegration.Series.IndexOf("AxisX") >= 0)
+            {
+                chartIntegration.Series.Remove(chartIntegration.Series["AxisX"]);
+            }
+
+            if (yMin < 0 && yMax > 0)
+            {
+                Series axisX = chartIntegration.Series.Add("AxisX");
+                axisX.ChartType = SeriesChartType.Line;
+                axisX.Color = Color.Gray;
+                axisX.BorderWidth = 1;
+                axisX.BorderDashStyle = ChartDashStyle.Dash;
+                axisX.Points.AddXY(chartIntegration.ChartAreas[0].AxisX.Minimum, 0);
+                axisX.Points.AddXY(chartIntegration.ChartAreas[0].AxisX.Maximum, 0);
+            }
+
+            chartIntegration.Invalidate();
         }
 
-        private void ClearChart()
+        // Отрисовка прямоугольников
+        private void DrawRectangles(string function, double a, double b, int n, double h)
         {
-            var seriesToRemove = chart1.Series
-                .Where(s => s.Name != "XAxis" && s.Name != "YAxis")
-                .ToList();
-
-            foreach (var series in seriesToRemove)
+            for (int i = 0; i < n; i++)
             {
-                chart1.Series.Remove(series);
-            }
-        }
+                double x1 = a + i * h;
+                double x2 = x1 + h;
+                double xLeft = x1; // Левая точка для прямоугольника
 
-        private void buttonClear_Click(object sender, EventArgs e)
-        {
-            textBoxF.Clear();
-            textBoxA.Clear();
-            textBoxB.Clear();
-            textBoxE.Clear();
-            textBoxRes.Clear();
-
-            ClearChart();
-            AddAxes();
-
-            // Сброс масштаба
-            ResetChartScale();
-
-            textBoxF.Focus();
-        }
-
-        private void ResetChartScale()
-        {
-            var chartArea = chart1.ChartAreas[0];
-            chartArea.AxisX.Minimum = -10;
-            chartArea.AxisX.Maximum = 10;
-            chartArea.AxisY.Minimum = -10;
-            chartArea.AxisY.Maximum = 10;
-        }
-
-        // Валидация ввода функции
-        private void textBoxF_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            char c = e.KeyChar;
-
-            // Проверяем на кириллицу
-            if ((c >= 'А' && c <= 'я') || c == 'ё' || c == 'Ё')
-            {
-                e.Handled = true;
-                return;
-            }
-
-            // Разрешаем управляющие символы
-            if (char.IsControl(c))
-            {
-                return;
-            }
-
-            // Разрешаемые символы для математических выражений
-            string allowedSymbols = "xyzabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-*/^()., ";
-
-            if (!allowedSymbols.Contains(c))
-            {
-                e.Handled = true;
-            }
-        }
-
-        // Валидация ввода чисел (A и B)
-        private void textBoxNumber_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            System.Windows.Forms.TextBox textBox = sender as System.Windows.Forms.TextBox;
-            if (textBox == null) return;
-
-            if (char.IsControl(e.KeyChar))
-            {
-                return;
-            }
-
-            string allowedChars = "0123456789-.,";
-
-            if (textBox.SelectionStart == 0 && (e.KeyChar == '.' || e.KeyChar == ','))
-            {
-                e.Handled = true;
-                return;
-            }
-
-            if (!allowedChars.Contains(e.KeyChar))
-            {
-                e.Handled = true;
-                return;
-            }
-
-            if (e.KeyChar == '-' && textBox.SelectionStart != 0)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            if ((e.KeyChar == '.' || e.KeyChar == ',') &&
-                (textBox.Text.Contains('.') || textBox.Text.Contains(',')))
-            {
-                if (textBox.SelectedText.Contains('.') || textBox.SelectedText.Contains(','))
+                try
                 {
+                    double y = EvaluateFunction(function, xLeft);
+
+                    if (!double.IsInfinity(y) && !double.IsNaN(y))
+                    {
+                        // Определяем границы прямоугольника
+                        double bottomY, topY;
+
+                        if (y >= 0)
+                        {
+                            bottomY = 0;
+                            topY = y;
+                        }
+                        else
+                        {
+                            bottomY = y;
+                            topY = 0;
+                        }
+
+                        // Рисуем прямоугольник
+                        chartIntegration.Series["Прямоугольники"].Points.AddXY(x1, bottomY);
+                        chartIntegration.Series["Прямоугольники"].Points.AddXY(x1, topY);
+                        chartIntegration.Series["Прямоугольники"].Points.AddXY(x2, topY);
+                        chartIntegration.Series["Прямоугольники"].Points.AddXY(x2, bottomY);
+                        chartIntegration.Series["Прямоугольники"].Points.AddXY(x1, bottomY);
+                        chartIntegration.Series["Прямоугольники"].Points.AddXY(double.NaN, double.NaN);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем точки разрыва
+                }
+            }
+        }
+
+        // Отрисовка трапеций
+        private void DrawTrapezoids(string function, double a, double b, int n, double h)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                double x1 = a + i * h;
+                double x2 = x1 + h;
+
+                try
+                {
+                    double y1 = EvaluateFunction(function, x1);
+                    double y2 = EvaluateFunction(function, x2);
+
+                    if (!double.IsInfinity(y1) && !double.IsNaN(y1) &&
+                        !double.IsInfinity(y2) && !double.IsNaN(y2))
+                    {
+                        // Трапеция: точки (x1,0), (x1,y1), (x2,y2), (x2,0)
+                        chartIntegration.Series["Трапеции"].Points.AddXY(x1, 0);
+                        chartIntegration.Series["Трапеции"].Points.AddXY(x1, y1);
+                        chartIntegration.Series["Трапеции"].Points.AddXY(x2, y2);
+                        chartIntegration.Series["Трапеции"].Points.AddXY(x2, 0);
+                        chartIntegration.Series["Трапеции"].Points.AddXY(x1, 0);
+                        chartIntegration.Series["Трапеции"].Points.AddXY(double.NaN, double.NaN);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем точки разрыва
+                }
+            }
+        }
+
+        // Отрисовка парабол (Симпсон)
+        private void DrawParabolas(string function, double a, double b, int n, double h)
+        {
+            if (n % 2 != 0) n++; // Нужно четное количество интервалов
+
+            for (int i = 0; i < n; i += 2)
+            {
+                double x0 = a + i * h;
+                double x1 = x0 + h;
+                double x2 = x1 + h;
+
+                try
+                {
+                    double y0 = EvaluateFunction(function, x0);
+                    double y1 = EvaluateFunction(function, x1);
+                    double y2 = EvaluateFunction(function, x2);
+
+                    if (!double.IsInfinity(y0) && !double.IsNaN(y0) &&
+                        !double.IsInfinity(y1) && !double.IsNaN(y1) &&
+                        !double.IsInfinity(y2) && !double.IsNaN(y2))
+                    {
+                        // Аппроксимируем параболой через три точки
+                        // Для простоты визуализации рисуем отрезки
+                        chartIntegration.Series["Параболы"].Points.AddXY(x0, 0);
+                        chartIntegration.Series["Параболы"].Points.AddXY(x0, y0);
+
+                        // Точки на параболе (аппроксимация)
+                        int segments = 10;
+                        for (int j = 0; j <= segments; j++)
+                        {
+                            double t = (double)j / segments;
+                            double x = x0 + 2 * h * t; // От x0 до x2
+                            // Квадратичная интерполяция
+                            double y = InterpolateQuadratic(x0, y0, x1, y1, x2, y2, x);
+                            chartIntegration.Series["Параболы"].Points.AddXY(x, y);
+                        }
+
+                        chartIntegration.Series["Параболы"].Points.AddXY(x2, y2);
+                        chartIntegration.Series["Параболы"].Points.AddXY(x2, 0);
+                        chartIntegration.Series["Параболы"].Points.AddXY(x0, 0);
+                        chartIntegration.Series["Параболы"].Points.AddXY(double.NaN, double.NaN);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем точки разрыва
+                }
+            }
+        }
+
+        // Квадратичная интерполяция
+        private double InterpolateQuadratic(double x0, double y0, double x1, double y1, double x2, double y2, double x)
+        {
+            double l0 = ((x - x1) * (x - x2)) / ((x0 - x1) * (x0 - x2));
+            double l1 = ((x - x0) * (x - x2)) / ((x1 - x0) * (x1 - x2));
+            double l2 = ((x - x0) * (x - x1)) / ((x2 - x0) * (x2 - x1));
+
+            return y0 * l0 + y1 * l1 + y2 * l2;
+        }
+
+        #endregion
+
+        #region Обработчики событий
+
+        private void CheckBoxAutoN_CheckedChanged(object sender, EventArgs e)
+        {
+            textBoxN.Enabled = !checkBoxAutoN.Checked;
+
+            if (checkBoxAutoN.Checked)
+            {
+                textBoxN.Text = "Авто";
+            }
+            else
+            {
+                textBoxN.Text = "10";
+            }
+        }
+
+        private async void ButtonCalculateIntegral_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Проверка входных данных
+                if (string.IsNullOrWhiteSpace(textBoxFunction.Text))
+                {
+                    MessageBox.Show("Введите функцию для интегрирования", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                e.Handled = true;
+
+                if (!double.TryParse(textBoxA.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double a))
+                {
+                    MessageBox.Show("Некорректное значение A", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(textBoxB.Text.Replace(",", "."), NumberStyles.Any,
+                    CultureInfo.InvariantCulture, out double b))
+                {
+                    MessageBox.Show("Некорректное значение B", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                if (a >= b)
+                {
+                    MessageBox.Show("Значение A должно быть меньше B", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Проверка N
+                int? n = null;
+                if (!checkBoxAutoN.Checked)
+                {
+                    if (!int.TryParse(textBoxN.Text, out int nValue) || nValue <= 0)
+                    {
+                        MessageBox.Show("N должно быть положительным целым числом", "Ошибка",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    n = Math.Min(nValue, 1000);
+                }
+                else
+                {
+                    n = 10; // Для визуализации
+                }
+
+                // Останавливаем предыдущее вычисление
+                if (_isCalculationRunning)
+                {
+                    _cancellationTokenSource?.Cancel();
+                }
+
+                // Визуализация
+                PlotFunctionAndAreas(textBoxFunction.Text, a, b, n.Value);
+
+                // Запуск вычисления
+                _cancellationTokenSource = new CancellationTokenSource();
+                _isCalculationRunning = true;
+                buttonCalculateIntegral.Enabled = false;
+                buttonStopIntegral.Enabled = true;
+
+                try
+                {
+                    double result;
+                    string method = GetSelectedMethod();
+
+                    if (checkBoxAutoN.Checked)
+                    {
+                        double precision = 1e-6;
+                        result = await AdaptiveIntegrateAsync(
+                            textBoxFunction.Text, a, b, precision, method,
+                            _cancellationTokenSource.Token);
+
+                        // Обновляем N
+                        int estimatedN = (int)Math.Ceiling(Math.Abs(b - a) / Math.Sqrt(precision));
+                        if (method == "Симпсон" && estimatedN % 2 != 0) estimatedN++;
+                        textBoxN.Text = estimatedN.ToString();
+                    }
+                    else
+                    {
+                        result = CalculateIntegral(textBoxFunction.Text, a, b, n.Value, method);
+                    }
+
+                    // Вывод результата
+                    textBoxResult.Text = result.ToString("F10");
+
+                    // Вывод информации о методе
+                    labelInfo.Text = $"Метод: {method}, N={n.Value}, Площадь={result:F6}";
+                }
+                catch (OperationCanceledException)
+                {
+                    textBoxResult.Text = "Прервано";
+                    labelInfo.Text = "Вычисление прервано";
+                }
+                catch (Exception ex)
+                {
+                    textBoxResult.Text = "Ошибка";
+                    labelInfo.Text = $"Ошибка: {ex.Message}";
+                }
+                finally
+                {
+                    _isCalculationRunning = false;
+                    buttonCalculateIntegral.Enabled = true;
+                    buttonStopIntegral.Enabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка: {ex.Message}",
+                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                _isCalculationRunning = false;
+                buttonCalculateIntegral.Enabled = true;
+                buttonStopIntegral.Enabled = false;
             }
         }
 
-        // Валидация точности (только целые положительные)
-        private void textBoxE_KeyPress(object sender, KeyPressEventArgs e)
+        private void ButtonStopIntegral_Click(object sender, EventArgs e)
         {
-            System.Windows.Forms.TextBox textBox = sender as System.Windows.Forms.TextBox;
-
-            if (!char.IsDigit(e.KeyChar) && !char.IsControl(e.KeyChar))
+            if (_isCalculationRunning && _cancellationTokenSource != null)
             {
-                e.Handled = true;
+                _cancellationTokenSource.Cancel();
+                buttonStopIntegral.Enabled = false;
             }
         }
 
-        // Автоматическая замена запятой на точку
-        private void textBoxNumber_Leave(object sender, EventArgs e)
+        private void ButtonClearIntegral_Click(object sender, EventArgs e)
         {
-            System.Windows.Forms.TextBox textBox = sender as System.Windows.Forms.TextBox;
-            if (textBox != null && !string.IsNullOrWhiteSpace(textBox.Text))
+            if (_isCalculationRunning)
             {
-                textBox.Text = textBox.Text.Replace(',', '.');
+                _cancellationTokenSource?.Cancel();
+                _isCalculationRunning = false;
             }
+
+            // Очистка полей
+            textBoxFunction.Clear();
+            textBoxA.Clear();
+            textBoxB.Clear();
+            textBoxN.Text = "10";
+            textBoxResult.Clear();
+            checkBoxAutoN.Checked = false;
+            labelInfo.Text = "";
+
+            // Очистка графика
+            foreach (Series series in chartIntegration.Series)
+            {
+                series.Points.Clear();
+            }
+
+            // Удаляем временные серии
+            if (chartIntegration.Series.IndexOf("AxisX") >= 0)
+            {
+                chartIntegration.Series.Remove(chartIntegration.Series["AxisX"]);
+            }
+
+            SetupChart();
+            chartIntegration.Invalidate();
+        }
+
+        #endregion
+
+        private void buttonBack_Click(object sender, EventArgs e)
+        {
+            if (_isCalculationRunning)
+            {
+                _cancellationTokenSource?.Cancel();
+            }
+
+            Main main = new Main();
+            main.Show();
+            this.Close();
         }
     }
 }
