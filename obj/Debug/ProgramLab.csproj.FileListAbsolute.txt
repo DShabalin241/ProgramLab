@@ -47,3 +47,4 @@ C:\Users\dmitr\source\repos\ProgramLab\bin\Debug\System.Security.Cryptography.Xm
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Newton.resources
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.MNK.resources
 C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.SLAU.resources
+C:\Users\dmitr\source\repos\ProgramLab\obj\Debug\ProgramLab.Sort.resources

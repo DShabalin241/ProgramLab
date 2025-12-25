@@ -199,6 +199,9 @@
     <EmbeddedResource Include="SLAU.resx">
       <DependentUpon>SLAU.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Sort.resx">
+      <DependentUpon>Sort.cs</DependentUpon>
+    </EmbeddedResource>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
